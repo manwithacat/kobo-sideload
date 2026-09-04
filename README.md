@@ -24,6 +24,8 @@ Sideloads go in the **`KOReader/`** folder the installer creates on the USB volu
 
 Firmware **4.6–4.x** (Libra Colour 4.45 included). Firmware **5.x** is not supported yet (NickelMenu does not load).
 
+The extra bottom-nav tab is NickelMenu (firmware 4.23 removed the old top-left menu). We label it **KOReader** instead of a second hamburger. There is also a KOReader item in **My Books**. Putting it inside stock **More** is not a NickelMenu config option; `.adds/nm/koreader` has a commented experiment to hide the extra tab in case More still receives the Settings hook.
+
 ## What GitHub Actions builds
 
 Every week, and on every push to `main`, [`.github/workflows/build.yml`](.github/workflows/build.yml):

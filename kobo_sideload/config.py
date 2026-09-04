@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 NICKELMENU_CONFIG_NAME = "koreader"
-NICKELMENU_CONFIG = (
-    "# Launch KOReader without KFMon. Survives official firmware updates.\n"
-    "menu_item:main:KOReader:cmd_spawn:quiet:exec "
-    "/mnt/onboard/.adds/koreader/koreader.sh\n"
-)
+NICKELMENU_CONFIG = """\
+# Firmware 4.23+ removed the old top-left main menu, so NickelMenu adds an
+# extra bottom tab. Its default icon is Kobo's More glyph (a second hamburger).
+# Label that tab KOReader so it is a launch affordance, not a duplicate More.
+experimental:menu_main_15505_label:KOReader
+
+# Same launch from the extra tab's menu, and from My Books overflow.
+menu_item:main:KOReader:cmd_spawn:quiet:exec /mnt/onboard/.adds/koreader/koreader.sh
+menu_item:library:KOReader:cmd_spawn:quiet:exec /mnt/onboard/.adds/koreader/koreader.sh
+
+# Experiment: hide the extra tab. NickelMenu still intercepts a "Settings"
+# item (StatusBarMenuController). If More still creates that item, KOReader
+# appears inside More with no extra tab. If KOReader vanishes, comment this
+# out and reboot.
+# experimental:menu_main_15505_enabled:0
+"""
 
 # Firmware 4.17+ indexes hidden folders. Skip those (except .kobo/.adobe)
 # and the visible sideload library so Nickel does not ingest FB2/etc.

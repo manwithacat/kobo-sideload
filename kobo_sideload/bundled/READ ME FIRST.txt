@@ -31,7 +31,8 @@ Right-click → Open often cannot override that.
 4. The installer asks to eject the Kobo. Say yes. It will reboot as if
    installing an update — that is NickelMenu being installed.
 
-5. After reboot, open NickelMenu on the Home screen and tap KOReader.
+5. After reboot, tap the **KOReader** tab on the Home screen (not More),
+   or open My Books and look for KOReader in that menu.
 
 6. Put .fb2 / .fb2.zip (and other sideloads) in the KOReader folder on
    the Kobo USB volume. Nickel ignores that folder. In KOReader, open it
