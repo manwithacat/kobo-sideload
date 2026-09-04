@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tarfile
@@ -84,6 +85,24 @@ def specs_for_langs(langs: list[str]) -> list[DictSpec]:
     return [spec for spec in CATALOG if wanted.intersection(spec.langs)]
 
 
+def _ensure_readable(root: Path) -> None:
+    """Python 3.9 keeps tar directory modes; 0o644 dirs cannot be traversed."""
+
+    def fix(path: Path, directory: bool) -> None:
+        try:
+            path.chmod(path.stat().st_mode | (0o700 if directory else 0o600))
+        except OSError:
+            pass
+
+    fix(root, True)
+    for dirpath, dirnames, filenames in os.walk(root):
+        current = Path(dirpath)
+        for name in dirnames:
+            fix(current / name, True)
+        for name in filenames:
+            fix(current / name, False)
+
+
 def _extract_tar(archive: Path, dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     kwargs = {}
@@ -91,6 +110,7 @@ def _extract_tar(archive: Path, dest: Path) -> None:
         kwargs["filter"] = "data"
     with tarfile.open(archive) as tar:
         tar.extractall(dest, **kwargs)
+    _ensure_readable(dest)
 
 
 def unpack_stardict_archive(archive: Path, dest_dir: Path) -> list[Path]:

@@ -30,10 +30,12 @@ def _stardict_tarball(path: Path, stem: str, *, with_res: bool = False) -> None:
             info = tarfile.TarInfo(name=name)
             if content is None:
                 info.type = tarfile.DIRTYPE
+                info.mode = 0o755
                 tar.addfile(info)
                 continue
             data = content if isinstance(content, bytes) else content.encode("utf-8")
             info.size = len(data)
+            info.mode = 0o644
             tar.addfile(info, io.BytesIO(data))
     path.write_bytes(payload.getvalue())
 
@@ -90,6 +92,26 @@ class DictTests(unittest.TestCase):
             self.assertTrue((dest / "gcide" / "gcide.dict").is_file())
             self.assertTrue((dest / "gcide" / "res" / "note.txt").is_file())
             self.assertFalse((dest / ".unpack").exists())
+
+    def test_unpack_stardict_with_unreadable_tar_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "gcide.tar.gz"
+            dest = tmp_path / "dictionaries"
+            payload = io.BytesIO()
+            with tarfile.open(fileobj=payload, mode="w:gz") as tar:
+                directory = tarfile.TarInfo("stardict-gcide/")
+                directory.type = tarfile.DIRTYPE
+                directory.mode = 0o644
+                tar.addfile(directory)
+                info = tarfile.TarInfo("stardict-gcide/gcide.ifo")
+                data = b"StarDict's dict ifo file\n"
+                info.size = len(data)
+                info.mode = 0o644
+                tar.addfile(info, io.BytesIO(data))
+            archive.write_bytes(payload.getvalue())
+            unpack_stardict_archive(archive, dest)
+            self.assertTrue((dest / "gcide" / "gcide.ifo").is_file())
 
     def test_unpack_rejects_archive_without_ifo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -175,7 +175,10 @@ class DeviceTests(unittest.TestCase):
             "kobo_sideload.device.os.uname", return_value=uname, create=True
         ), mock.patch("kobo_sideload.device.subprocess.check_call") as call:
             eject_kobo(volume)
-        call.assert_called_once_with(["diskutil", "eject", "/Volumes/KOBOeReader"])
+        call.assert_called_once()
+        cmd = call.call_args[0][0]
+        self.assertEqual(cmd[:2], ["diskutil", "eject"])
+        self.assertEqual(Path(cmd[2]), volume.mountpoint)
 
 
 if __name__ == "__main__":
