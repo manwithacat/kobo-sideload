@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import tarfile
@@ -12,11 +13,15 @@ from pathlib import Path
 from .catalog import Artifact
 from .download import fetch_artifact, sha256_file
 
+LANG_RE = re.compile(r"^[a-z]{2,3}$")
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+
 
 @dataclass(frozen=True)
 class DictSpec:
     key: str
     langs: tuple[str, ...]
+    label: str
     name: str
     license: str
     url: str
@@ -24,52 +29,115 @@ class DictSpec:
     sha256: str | None = None
 
 
-# Same archives KOReader lists in frontend/ui/data/dictionaries.lua.
-# Keep install.sh URLs in sync.
-CATALOG: tuple[DictSpec, ...] = (
-    DictSpec(
-        key="gcide",
-        langs=("en",),
-        name="GNU Collaborative International Dictionary of English",
-        license="GPLv3+",
-        url="http://build.koreader.rocks/download/dict/gcide.tar.gz",
-        filename="gcide.tar.gz",
-    ),
-    DictSpec(
-        key="rus-eng-short",
-        langs=("ru",),
-        name="Russian-English short dictionary",
-        license="GPL",
-        url=(
-            "https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/"
-            "d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/002c/"
-            "stardict-comn_sdict05_rus_eng_short-2.4.2.tar.gz"
-        ),
-        filename="stardict-rus-eng-short.tar.gz",
-    ),
-    DictSpec(
-        key="ushakov",
-        langs=("ru",),
-        name="Ushakov explanatory dictionary (Russian)",
-        license="see upstream ifo",
-        url=(
-            "https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/"
-            "d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/001/"
-            "stardict-comn_dictd03_ushakov-2.4.2.tar.gz"
-        ),
-        filename="stardict-ushakov.tar.gz",
-    ),
-)
+def catalog_path() -> Path:
+    return Path(__file__).resolve().parent / "bundled" / "dictionaries.tsv"
 
 
-def parse_langs(value: str) -> list[str]:
+def load_catalog(path: Path | None = None) -> tuple[DictSpec, ...]:
+    path = path or catalog_path()
+    rows: list[DictSpec] = []
+    seen_keys: set[str] = set()
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        raw = line.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        parts = [part.strip() for part in line.split("\t")]
+        if len(parts) not in {7, 8}:
+            raise ValueError(f"{path.name}:{lineno}: expected 7 or 8 tab-separated fields, got {len(parts)}")
+        key, langs_s, label, name, license_, filename, url = parts[:7]
+        sha256 = parts[7] or None if len(parts) == 8 else None
+        if not KEY_RE.match(key):
+            raise ValueError(f"{path.name}:{lineno}: invalid key {key!r}")
+        if key in seen_keys:
+            raise ValueError(f"{path.name}:{lineno}: duplicate key {key!r}")
+        langs = tuple(lang.strip().lower() for lang in langs_s.split(",") if lang.strip())
+        if not langs:
+            raise ValueError(f"{path.name}:{lineno}: langs is empty")
+        for lang in langs:
+            if not LANG_RE.match(lang):
+                raise ValueError(f"{path.name}:{lineno}: invalid language code {lang!r}")
+        if not label or not name or not license_:
+            raise ValueError(f"{path.name}:{lineno}: label, name, and license are required")
+        if not filename.endswith(".tar.gz"):
+            raise ValueError(f"{path.name}:{lineno}: filename must be a .tar.gz (not .tar.zst)")
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"{path.name}:{lineno}: url must be http(s)")
+        seen_keys.add(key)
+        rows.append(
+            DictSpec(
+                key=key,
+                langs=langs,
+                label=label,
+                name=name,
+                license=license_,
+                url=url,
+                filename=filename,
+                sha256=sha256,
+            )
+        )
+    if not rows:
+        raise ValueError(f"{path.name} contains no dictionary rows")
+    return tuple(rows)
+
+
+CATALOG: tuple[DictSpec, ...] = load_catalog()
+
+
+def available_langs(catalog: tuple[DictSpec, ...] | None = None) -> list[str]:
+    seen: list[str] = []
+    for spec in catalog or CATALOG:
+        for lang in spec.langs:
+            if lang not in seen:
+                seen.append(lang)
+    return seen
+
+
+def lang_labels(catalog: tuple[DictSpec, ...] | None = None) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    for spec in catalog or CATALOG:
+        for lang in spec.langs:
+            labels.setdefault(lang, spec.label)
+    return labels
+
+
+def lang_choice_hint(catalog: tuple[DictSpec, ...] | None = None) -> str:
+    langs = available_langs(catalog)
+    if len(langs) > 1:
+        return "skip/" + "/".join(langs) + "/all"
+    if langs:
+        return f"skip/{langs[0]}"
+    return "skip"
+
+
+def format_lang_prompt(catalog: tuple[DictSpec, ...] | None = None) -> list[str]:
+    labels = lang_labels(catalog)
+    langs = available_langs(catalog)
+    lines = [
+        "Dictionaries are optional (not in the app zip). Long-press a word in KOReader to look it up.",
+        "  skip   none now — download later in KOReader over Wi-Fi",
+    ]
+    for lang in langs:
+        lines.append(f"  {lang:<6} {labels.get(lang, lang)}")
+    if len(langs) > 1:
+        lines.append("  all    every listed language")
+    return lines
+
+
+def parse_langs(value: str, catalog: tuple[DictSpec, ...] | None = None) -> list[str]:
+    catalog = catalog or CATALOG
+    known = available_langs(catalog)
     raw = (value or "").strip().lower().replace(";", ",")
     if raw in {"", "skip", "none", "no", "n"}:
         return []
     if raw in {"both", "all"}:
-        return ["en", "ru"]
+        return list(known)
     parts = [part.strip() for part in raw.replace(" ", ",").split(",") if part.strip()]
-    specs_for_langs(parts)
+    unknown = [part for part in parts if part not in known]
+    if unknown:
+        raise ValueError(
+            f"unknown dictionary language(s): {', '.join(unknown)}. "
+            f"Known: {', '.join(known) or '(none)'}"
+        )
     seen: list[str] = []
     for part in parts:
         if part not in seen:
@@ -77,12 +145,17 @@ def parse_langs(value: str) -> list[str]:
     return seen
 
 
-def specs_for_langs(langs: list[str]) -> list[DictSpec]:
+def specs_for_langs(langs: list[str], catalog: tuple[DictSpec, ...] | None = None) -> list[DictSpec]:
+    catalog = catalog or CATALOG
+    known = set(available_langs(catalog))
     wanted = {lang.strip().lower() for lang in langs if lang.strip()}
-    unknown = wanted - {"en", "ru"}
+    unknown = wanted - known
     if unknown:
-        raise ValueError(f"unknown dictionary language(s): {', '.join(sorted(unknown))}")
-    return [spec for spec in CATALOG if wanted.intersection(spec.langs)]
+        raise ValueError(
+            f"unknown dictionary language(s): {', '.join(sorted(unknown))}. "
+            f"Known: {', '.join(available_langs(catalog)) or '(none)'}"
+        )
+    return [spec for spec in catalog if wanted.intersection(spec.langs)]
 
 
 def _ensure_readable(root: Path) -> None:

@@ -6,12 +6,6 @@ $Label = "KOBOeReader"
 $ExcludeLine = 'ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 $StarDictMarker = "-- kobo-sideload dictionaries"
 $StarDictLine = 'STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"'
-# Keep URLs in sync with kobo_sideload/dicts.py
-$DictCatalog = @(
-    @{ Langs = @("en"); Url = "http://build.koreader.rocks/download/dict/gcide.tar.gz"; File = "gcide.tar.gz" },
-    @{ Langs = @("ru"); Url = "https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/002c/stardict-comn_sdict05_rus_eng_short-2.4.2.tar.gz"; File = "stardict-rus-eng-short.tar.gz" },
-    @{ Langs = @("ru"); Url = "https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/001/stardict-comn_dictd03_ushakov-2.4.2.tar.gz"; File = "stardict-ushakov.tar.gz" }
-)
 
 function Die($msg) {
     Write-Host "error: $msg"
@@ -106,36 +100,84 @@ function Unpack-StarDict($archive, $dest) {
     }
 }
 
-function Normalize-DictLangs($value) {
+function Get-DictCatalog {
+    $path = Join-Path $Here "dictionaries.tsv"
+    $rows = @()
+    if (-not (Test-Path $path)) { return $rows }
+    Get-Content -Path $path -Encoding UTF8 | ForEach-Object {
+        $line = $_.TrimEnd()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $p = $line -split "`t"
+        if ($p.Count -lt 7) { return }
+        $rows += @{
+            Key = $p[0].Trim()
+            Langs = @($p[1].Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+            Label = $p[2].Trim()
+            Name = $p[3].Trim()
+            License = $p[4].Trim()
+            File = $p[5].Trim()
+            Url = $p[6].Trim()
+        }
+    }
+    return $rows
+}
+
+function CatalogLangs($catalog) {
+    $seen = New-Object System.Collections.Generic.List[string]
+    foreach ($spec in @($catalog)) {
+        foreach ($lang in @($spec.Langs)) {
+            $lang = "$lang".Trim()
+            if ($lang -and -not $seen.Contains($lang)) { [void]$seen.Add($lang) }
+        }
+    }
+    return $seen
+}
+
+function Normalize-DictLangs($value, $catalog) {
     $raw = ($value -replace '\s', '').ToLowerInvariant()
-    switch ($raw) {
-        { $_ -in @("", "skip", "none", "no", "n") } { return @() }
-        { $_ -in @("both", "all", "en,ru", "ru,en") } { return @("en", "ru") }
-        "en" { return @("en") }
-        "ru" { return @("ru") }
-        default {
-            Write-Host "unknown dictionary choice: $value (use skip, en, ru, or en,ru); skipping."
+    $known = @(CatalogLangs $catalog)
+    if ($raw -in @("", "skip", "none", "no", "n")) { return @() }
+    if ($raw -in @("both", "all")) { return @($known) }
+    $wanted = New-Object System.Collections.Generic.List[string]
+    foreach ($part in @($raw.Split(",") | Where-Object { $_ })) {
+        if ($known -contains $part) {
+            if (-not $wanted.Contains($part)) { [void]$wanted.Add($part) }
+        } else {
+            Write-Host "unknown dictionary choice: $part (use skip, language codes, or all); skipping."
             return @()
         }
     }
+    return @($wanted)
 }
 
-function Choose-DictLangs {
+function Choose-DictLangs($catalog) {
     if ($env:KOBO_SIDELOAD_DICTS) {
-        return Normalize-DictLangs $env:KOBO_SIDELOAD_DICTS
+        return Normalize-DictLangs $env:KOBO_SIDELOAD_DICTS $catalog
     }
+    $known = @(CatalogLangs $catalog)
     Write-Host ""
     Write-Host "Dictionaries are optional (not in this zip). Long-press a word in KOReader to look it up."
     Write-Host "  skip   none now — download later in KOReader over Wi-Fi"
-    Write-Host "  en     English (GCIDE)"
-    Write-Host "  ru     Russian (Ushakov + Russian-English)"
-    Write-Host "  en,ru  both"
-    $raw = Read-Host "Download dictionaries now? [skip/en/ru/en,ru]"
+    $seen = @{}
+    foreach ($spec in @($catalog)) {
+        foreach ($lang in @($spec.Langs)) {
+            if ($lang -and -not $seen.ContainsKey($lang)) {
+                $seen[$lang] = $true
+                Write-Host ("  {0,-6} {1}" -f $lang, $spec.Label)
+            }
+        }
+    }
+    if ($known.Count -gt 1) {
+        Write-Host "  all    every listed language"
+    }
+    $hint = "skip"
+    if ($known.Count -gt 0) { $hint = "skip/" + ($known -join "/") + "/all" }
+    $raw = Read-Host "Download dictionaries now? [$hint]"
     if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
-    return Normalize-DictLangs $raw
+    return Normalize-DictLangs $raw $catalog
 }
 
-function Install-Dicts($langs, $dest) {
+function Install-Dicts($langs, $dest, $catalog) {
     if ($null -eq $langs) { return }
     $langs = @($langs | Where-Object { $_ })
     if ($langs.Count -eq 0) { return }
@@ -143,7 +185,7 @@ function Install-Dicts($langs, $dest) {
     New-Item -ItemType Directory -Force -Path $cache, $dest | Out-Null
     Write-Host ""
     Write-Host "Downloading dictionaries onto $dest ..."
-    foreach ($spec in $DictCatalog) {
+    foreach ($spec in @($catalog)) {
         $match = $false
         foreach ($lang in $spec.Langs) {
             if ($langs -contains $lang) { $match = $true }
@@ -224,8 +266,9 @@ Write-Host "Install complete."
 Write-Host "Put FB2 and other sideloads in the KOReader folder on the USB volume."
 $dictOk = $true
 try {
-    $dictLangs = Choose-DictLangs
-    Install-Dicts $dictLangs $destDicts
+    $dictCatalog = @(Get-DictCatalog)
+    $dictLangs = Choose-DictLangs $dictCatalog
+    Install-Dicts $dictLangs $destDicts $dictCatalog
 } catch {
     $dictOk = $false
     Write-Host "Dictionary download failed. KOReader is installed; download later in KOReader over Wi-Fi."

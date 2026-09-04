@@ -8,6 +8,11 @@ from kobo_sideload.__main__ import build_parser
 from kobo_sideload.assemble import bundled_dir
 from kobo_sideload.dicts import (
     CATALOG,
+    available_langs,
+    catalog_path,
+    format_lang_prompt,
+    lang_choice_hint,
+    load_catalog,
     parse_langs,
     specs_for_langs,
     unpack_stardict_archive,
@@ -48,7 +53,8 @@ class DictTests(unittest.TestCase):
         self.assertEqual(parse_langs("ru"), ["ru"])
         self.assertEqual(parse_langs("en,ru"), ["en", "ru"])
         self.assertEqual(parse_langs("en, ru"), ["en", "ru"])
-        self.assertEqual(parse_langs("both"), ["en", "ru"])
+        self.assertEqual(parse_langs("both"), available_langs())
+        self.assertEqual(parse_langs("all"), available_langs())
         with self.assertRaises(ValueError):
             parse_langs("fr")
 
@@ -61,24 +67,71 @@ class DictTests(unittest.TestCase):
         self.assertEqual([spec.key for spec in both], [spec.key for spec in CATALOG])
         self.assertEqual(specs_for_langs([]), [])
 
-    def test_catalog_uses_koreader_targz(self) -> None:
+    def test_catalog_file_is_the_source_of_truth(self) -> None:
+        self.assertEqual(load_catalog(), CATALOG)
+        self.assertEqual(catalog_path(), bundled_dir() / "dictionaries.tsv")
+        self.assertEqual(available_langs(), ["en", "ru"])
+        self.assertIn("  en     English", "\n".join(format_lang_prompt()))
+        self.assertIn("  ru     Russian", "\n".join(format_lang_prompt()))
+        self.assertEqual(lang_choice_hint(), "skip/en/ru/all")
         for spec in CATALOG:
             self.assertTrue(spec.url.startswith("http"))
             self.assertTrue(spec.filename.endswith(".tar.gz"))
             self.assertTrue(spec.langs)
             self.assertTrue(spec.license)
+            self.assertTrue(spec.label)
 
-    def test_bundled_installers_keep_catalog_urls(self) -> None:
+    def test_notice_lists_every_catalog_entry(self) -> None:
+        notice = (Path(__file__).resolve().parents[1] / "NOTICE.md").read_text(encoding="utf-8")
+        for spec in CATALOG:
+            self.assertIn(spec.name, notice)
+            self.assertIn(spec.license, notice)
+
+    def test_bundled_installers_read_the_tsv(self) -> None:
+        tsv = (bundled_dir() / "dictionaries.tsv").read_text(encoding="utf-8")
         sh = (bundled_dir() / "install.sh").read_text(encoding="utf-8")
         ps1 = (bundled_dir() / "install.ps1").read_text(encoding="utf-8")
         for spec in CATALOG:
-            self.assertIn(spec.url, sh)
-            self.assertIn(spec.url, ps1)
-            self.assertIn(spec.filename, sh)
-            self.assertIn(spec.filename, ps1)
+            self.assertIn(spec.url, tsv)
+            self.assertIn(spec.filename, tsv)
+            self.assertNotIn(spec.url, sh)
+            self.assertNotIn(spec.url, ps1)
+        self.assertIn("dictionaries.tsv", sh)
+        self.assertIn("dictionaries.tsv", ps1)
         self.assertIn("STARDICT_DATA_DIR", sh)
         self.assertIn("STARDICT_DATA_DIR", ps1)
         self.assertNotIn("Remove-Item $destKo", ps1)
+
+    def test_extra_language_row_is_selectable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dictionaries.tsv"
+            path.write_text(
+                "gcide\ten\tEnglish\tGCIDE\tGPLv3+\tgcide.tar.gz\thttp://example.test/gcide.tar.gz\n"
+                "foo\tfr\tFrench\tFrench dict\tGPL\tfr.tar.gz\thttps://example.test/fr.tar.gz\n",
+                encoding="utf-8",
+            )
+            catalog = load_catalog(path)
+            self.assertEqual(available_langs(catalog), ["en", "fr"])
+            self.assertEqual(parse_langs("fr", catalog), ["fr"])
+            self.assertEqual(parse_langs("all", catalog), ["en", "fr"])
+            self.assertEqual([spec.key for spec in specs_for_langs(["fr"], catalog)], ["foo"])
+            self.assertIn("  fr     French", "\n".join(format_lang_prompt(catalog)))
+
+    def test_load_catalog_rejects_zst_and_bad_lang(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dictionaries.tsv"
+            path.write_text(
+                "bad\tfr\tFrench\tNope\tGPL\tfr.tar.zst\thttps://example.test/fr.tar.zst\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, r"\.tar\.gz"):
+                load_catalog(path)
+            path.write_text(
+                "bad\tfrench\tFrench\tNope\tGPL\tfr.tar.gz\thttps://example.test/fr.tar.gz\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "invalid language"):
+                load_catalog(path)
 
     def test_unpack_stardict_archive(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

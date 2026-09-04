@@ -29,10 +29,10 @@ Right-click → Open often cannot override that.
      Right-click install.ps1 → Run with PowerShell
 
 4. Optional dictionaries: the zip does not include them. When asked,
-   type skip, en, ru, or en,ru. The computer downloads them onto
-   .adds/dictionaries (the reader has no Wi-Fi while USB is plugged in).
-   You can also download later in KOReader:
-     Search → Dictionary settings → Download dictionaries.
+   type skip, a language code (en, ru, …), comma-separated codes, or
+   all. The computer downloads them onto .adds/dictionaries (the reader
+   has no Wi-Fi while USB is plugged in). You can also download later
+   in KOReader: Search → Dictionary settings → Download dictionaries.
 
 5. The installer asks to eject the Kobo. Say yes. It will reboot as if
    installing an update — that is NickelMenu being installed.

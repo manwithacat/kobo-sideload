@@ -7,13 +7,7 @@ LABEL="KOBOeReader"
 EXCLUDE_LINE='ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 STARDICT_MARKER='-- kobo-sideload dictionaries'
 STARDICT_LINE='STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"'
-# Keep URLs in sync with kobo_sideload/dicts.py
-DICT_GCIDE_URL='http://build.koreader.rocks/download/dict/gcide.tar.gz'
-DICT_GCIDE_FILE='gcide.tar.gz'
-DICT_RUS_ENG_URL='https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/002c/stardict-comn_sdict05_rus_eng_short-2.4.2.tar.gz'
-DICT_RUS_ENG_FILE='stardict-rus-eng-short.tar.gz'
-DICT_USHAKOV_URL='https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/001/stardict-comn_dictd03_ushakov-2.4.2.tar.gz'
-DICT_USHAKOV_FILE='stardict-ushakov.tar.gz'
+CATALOG_FILE="$HERE/dictionaries.tsv"
 
 die() {
 	echo "error: $*" >&2
@@ -219,68 +213,116 @@ install_one_dict() {
 	unpack_stardict "$cache/$filename" "$dest" || return 1
 }
 
+catalog_langs() {
+	[[ -f "$CATALOG_FILE" ]] || return 0
+	awk -F'\t' 'NF>=7 && $1 !~ /^#/ {
+		n=split($2, a, ",")
+		for (i=1;i<=n;i++) {
+			gsub(/ /, "", a[i])
+			if (a[i] != "" && !seen[a[i]]++) {
+				if (out != "") out = out "," a[i]
+				else out = a[i]
+			}
+		}
+	}
+	END { print out }' "$CATALOG_FILE"
+}
+
+print_catalog_prompt() {
+	echo "Dictionaries are optional (not in this zip). Long-press a word in KOReader to look it up." >&2
+	echo "  skip   none now — download later in KOReader over Wi-Fi" >&2
+	if [[ -f "$CATALOG_FILE" ]]; then
+		awk -F'\t' 'NF>=7 && $1 !~ /^#/ {
+			n=split($2, a, ",")
+			for (i=1;i<=n;i++) {
+				gsub(/ /, "", a[i])
+				if (a[i] != "" && !seen[a[i]]++) printf "  %-6s %s\n", a[i], $3
+			}
+		}' "$CATALOG_FILE" >&2
+		echo "  all    every listed language" >&2
+	fi
+}
+
 normalize_dict_langs() {
-	local raw
+	local raw known wanted part
 	raw="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
 	case "$raw" in
-		""|skip|none|no|n) printf '' ;;
-		both|all|en,ru|ru,en) printf 'en,ru' ;;
-		en|ru) printf '%s' "$raw" ;;
-		*)
-			echo "unknown dictionary choice: $1 (use skip, en, ru, or en,ru); skipping." >&2
-			printf ''
-			;;
+		""|skip|none|no|n) printf ''; return 0 ;;
+		both|all) catalog_langs; return 0 ;;
 	esac
+	known=",$(catalog_langs),"
+	wanted=""
+	IFS=',' read -ra parts <<<"$raw"
+	for part in "${parts[@]}"; do
+		[[ -n "$part" ]] || continue
+		case "$known" in
+			*",$part,"*)
+				case ",$wanted," in
+					*",$part,"*) ;;
+					*) wanted="${wanted:+$wanted,}$part" ;;
+				esac
+				;;
+			*)
+				echo "unknown dictionary choice: $part (use skip, language codes, or all); skipping." >&2
+				printf ''
+				return 0
+				;;
+		esac
+	done
+	printf '%s' "$wanted"
 }
 
 choose_dict_langs() {
-	local raw
+	local raw hint
 	if [[ -n "${KOBO_SIDELOAD_DICTS:-}" ]]; then
 		normalize_dict_langs "$KOBO_SIDELOAD_DICTS"
 		return 0
 	fi
 	if [[ ! -t 0 ]]; then
-		echo "No terminal for a dictionary prompt; skipping. Later: KOBO_SIDELOAD_DICTS=en,ru bash install.sh" >&2
+		hint="$(catalog_langs)"
+		echo "No terminal for a dictionary prompt; skipping. Later: KOBO_SIDELOAD_DICTS=${hint:-all} bash install.sh" >&2
 		printf ''
 		return 0
 	fi
 	echo >&2
-	echo "Dictionaries are optional (not in this zip). Long-press a word in KOReader to look it up." >&2
-	echo "  skip   none now — download later in KOReader over Wi-Fi" >&2
-	echo "  en     English (GCIDE)" >&2
-	echo "  ru     Russian (Ushakov + Russian-English)" >&2
-	echo "  en,ru  both" >&2
-	read -r -p "Download dictionaries now? [skip/en/ru/en,ru] " raw || raw="skip"
+	print_catalog_prompt
+	hint="$(catalog_langs)"
+	if [[ -n "$hint" ]]; then
+		hint="skip/${hint}/all"
+	else
+		hint="skip"
+	fi
+	read -r -p "Download dictionaries now? [$hint] " raw || raw="skip"
 	normalize_dict_langs "${raw:-skip}"
 }
 
 install_dicts() {
 	local langs="$1"
 	local dest="$2"
-	local cache
+	local cache key spec_langs label name license filename url want lang
 	[[ -n "$langs" ]] || return 0
+	if [[ ! -f "$CATALOG_FILE" ]]; then
+		echo "No dictionaries.tsv next to install.sh; skipping dictionary download." >&2
+		return 1
+	fi
 	cache="$(dict_cache_dir)"
 	mkdir -p "$cache" "$dest"
 	echo
 	echo "Downloading dictionaries onto $dest ..."
-	case "$langs" in
-		en)
-			install_one_dict "$DICT_GCIDE_URL" "$DICT_GCIDE_FILE" "$dest" "$cache" || return 1
-			;;
-		ru)
-			install_one_dict "$DICT_RUS_ENG_URL" "$DICT_RUS_ENG_FILE" "$dest" "$cache" || return 1
-			install_one_dict "$DICT_USHAKOV_URL" "$DICT_USHAKOV_FILE" "$dest" "$cache" || return 1
-			;;
-		en,ru)
-			install_one_dict "$DICT_GCIDE_URL" "$DICT_GCIDE_FILE" "$dest" "$cache" || return 1
-			install_one_dict "$DICT_RUS_ENG_URL" "$DICT_RUS_ENG_FILE" "$dest" "$cache" || return 1
-			install_one_dict "$DICT_USHAKOV_URL" "$DICT_USHAKOV_FILE" "$dest" "$cache" || return 1
-			;;
-		*)
-			echo "unknown dictionary choice: $langs" >&2
-			return 1
-			;;
-	esac
+	while IFS=$'\t' read -r key spec_langs label name license filename url; do
+		[[ -n "$key" ]] || continue
+		want=0
+		IFS=',' read -ra spec_lang_arr <<<"$spec_langs"
+		for lang in "${spec_lang_arr[@]}"; do
+			lang="${lang// /}"
+			case ",$langs," in
+				*",$lang,"*) want=1 ;;
+			esac
+		done
+		if [[ "$want" -eq 1 ]]; then
+			install_one_dict "$url" "$filename" "$dest" "$cache" || return 1
+		fi
+	done < <(awk -F'\t' 'NF>=7 && $1 !~ /^#/ { print }' "$CATALOG_FILE")
 }
 
 KOBO="$(find_kobo)"

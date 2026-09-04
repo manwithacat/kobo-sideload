@@ -41,6 +41,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn("install.ps1", names)
             self.assertIn("READ ME FIRST.txt", names)
             self.assertIn("KOReader/README.txt", names)
+            self.assertIn("dictionaries.tsv", names)
             self.assertNotIn("Install to Kobo.command", names)
             self.assertFalse(any(name.startswith(".adds/dictionaries") for name in names))
             restored = extract_payload_zip(dist, tmp_path / "restored")

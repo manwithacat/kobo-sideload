@@ -21,7 +21,14 @@ from .device import (
     plan_install,
     verify_install,
 )
-from .dicts import install_specs, parse_langs, specs_for_langs
+from .dicts import (
+    available_langs,
+    format_lang_prompt,
+    install_specs,
+    lang_choice_hint,
+    parse_langs,
+    specs_for_langs,
+)
 from .download import fetch_artifact, sha256_file
 from .paths import default_home, work_dirs
 
@@ -132,13 +139,11 @@ def cmd_package(args: argparse.Namespace) -> int:
 
 def _prompt_dict_langs() -> list[str]:
     print()
-    print("Dictionaries are optional (not in the app zip). Long-press a word in KOReader to look it up.")
-    print("  skip   none now — download later in KOReader over Wi-Fi")
-    print("  en     English (GCIDE)")
-    print("  ru     Russian (Ushakov + Russian-English)")
-    print("  en,ru  both")
+    for line in format_lang_prompt():
+        print(line)
+    hint = lang_choice_hint()
     try:
-        answer = input("Download dictionaries now? [skip/en/ru/en,ru] ").strip()
+        answer = input(f"Download dictionaries now? [{hint}] ").strip()
     except EOFError:
         answer = "skip"
     if not answer:
@@ -238,7 +243,7 @@ def cmd_dictionaries(args: argparse.Namespace) -> int:
     if args.lang is not None:
         langs = parse_langs(args.lang)
     elif args.yes:
-        raise RuntimeError("pass --lang en, ru, or en,ru")
+        raise RuntimeError(f"pass --lang {lang_choice_hint()}")
     else:
         langs = _prompt_dict_langs()
     if not langs:
@@ -319,11 +324,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="install a payload zip from CI / GitHub Releases instead of fetching",
     )
+    langs = ", ".join(available_langs()) or "none"
     install_p.add_argument(
         "--dicts",
         default=None,
         metavar="LANGS",
-        help="download dictionaries (en, ru, or en,ru). --yes skips dictionaries unless this is set",
+        help=(
+            f"download dictionaries ({langs}, comma-separated, or all). "
+            "--yes skips dictionaries unless this is set"
+        ),
     )
 
     dict_p = sub.add_parser(
@@ -334,7 +343,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lang",
         default=None,
         metavar="LANGS",
-        help="en, ru, or en,ru. Prompted if omitted",
+        help=f"{langs}, comma-separated, or all. Prompted if omitted",
     )
     dict_p.add_argument("--force", action="store_true", help="re-download even if cached")
     dict_p.add_argument("--yes", action="store_true", help="do not prompt (requires --lang)")

@@ -17,7 +17,7 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
    | Windows | Right-click `install.ps1` → Run with PowerShell |
    | Linux | `bash install.sh` |
 
-5. Optional: when asked, type **en**, **ru**, or **en,ru** to download dictionaries (the computer fetches them; USB mode has no Wi-Fi). Skip and download later in KOReader: **Search → Dictionary settings → Download dictionaries**.
+5. Optional: when asked, type a language code (**en**, **ru**, …), comma-separated codes, or **all** to download dictionaries (the computer fetches them; USB mode has no Wi-Fi). Skip and download later in KOReader: **Search → Dictionary settings → Download dictionaries**.
 6. When the installer asks to eject, say yes. The Kobo reboots as if applying an update — that is NickelMenu installing.
 7. Open **NickelMenu** on the Home screen and tap **KOReader**. Long-press a word to look it up.
 
@@ -48,6 +48,7 @@ Each zip contains:
 | `.kobo/KoboRoot.tgz` | NickelMenu plugin (applied on eject) |
 | `KOReader/` | Sideload library (FB2 etc.). Nickel is told not to index it. Reinstalls do not wipe books already there. |
 | `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo (`bash install.sh` on Mac/Linux — not a double-click). Merges `.adds/koreader/` so settings and dictionaries survive a reinstall. |
+| `dictionaries.tsv` | Optional StarDict catalog (URLs only). Language PRs add a row here. |
 | `READ ME FIRST.txt` | The same steps as above |
 
 Dictionaries are **not** in the zip (size and licences). The installer creates `.adds/dictionaries/` and points KOReader at it with `defaults.custom.lua`. Reinstalls merge the app tree and leave that folder alone.
@@ -73,4 +74,4 @@ Tests: `python3 -m unittest discover -s tests -v`
 
 The MobileRead OCP zip is a human-rebuilt merge of KFMon + NickelMenu + KOReader + Plato, hosted on an OVH bucket, installed by 2019 `install.command` / `.sh` / `.ps1` scripts. It lags GitHub (OCP was still KOReader v2026.03 when GitHub was on v2026.07.1) and ships the NickelMenu launch line commented out.
 
-This repo treats GitHub as the source of truth and Actions as the packager. Details: [COMPONENTS.md](COMPONENTS.md). Libra Colour / Russian FB2 notes: [STRATEGY.md](STRATEGY.md). Upstream licenses: [NOTICE.md](NOTICE.md).
+This repo treats GitHub as the source of truth and Actions as the packager. Details: [COMPONENTS.md](COMPONENTS.md). Libra Colour / Russian FB2 notes: [STRATEGY.md](STRATEGY.md). Upstream licenses: [NOTICE.md](NOTICE.md). Add a dictionary language: [CONTRIBUTING.md](CONTRIBUTING.md).
