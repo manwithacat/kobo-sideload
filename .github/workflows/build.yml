@@ -1,0 +1,92 @@
+name: build-payload
+
+# Assemble KOReader + NickelMenu from their GitHub releases and publish
+# a versioned zip. Users download that zip; they do not run this pipeline.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Build payload zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KOBO_SIDELOAD_HOME: ${{ github.workspace }}/work
+        run: kobo-sideload --firmware 4 build
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kobo-sideload-payload
+          path: |
+            work/dist/*.zip
+            work/dist/*.sha256
+            work/catalog.json
+            work/payload/MANIFEST.json
+      - name: Publish GitHub Release if new
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, os, pathlib, textwrap
+          catalog = json.loads(pathlib.Path("work/catalog.json").read_text())
+          ko = catalog["artifacts"]["koreader"]["tag"]
+          nm = catalog["artifacts"]["nickelmenu"]["tag"]
+          tag = f"koreader-{ko}-nickelmenu-{nm}"
+          zips = list(pathlib.Path("work/dist").glob("*.zip"))
+          if len(zips) != 1:
+              raise SystemExit(f"expected one zip in work/dist, found {zips}")
+          zip_path = zips[0]
+          sha = zip_path.with_name(zip_path.name + ".sha256").read_text().strip()
+          notes = textwrap.dedent(f"""\
+          # KOReader {ko} + NickelMenu {nm}
+
+          Assembled by GitHub Actions from the upstream GitHub releases. No KFMon, no Plato.
+
+          ## Install
+
+          1. Plug the Kobo in over USB (Home screen). Wait for the **KOBOeReader** drive.
+          2. Download **`{zip_path.name}`** from this release (not the source zip).
+          3. Unzip it **on your computer**.
+          4. Run the installer inside:
+             - macOS: double-click `Install to Kobo.command` (Right-click → Open if blocked)
+             - Windows: right-click `install.ps1` → Run with PowerShell
+             - Linux: `bash install.sh`
+          5. Eject. The Kobo reboots as if updating. Then **NickelMenu → KOReader**.
+
+          Do not drag folders onto the reader in Finder/Explorer.
+
+          `{sha}`
+
+          KOReader is AGPL-3.0-or-later. NickelMenu is MIT. See NOTICE.md.
+          """)
+          pathlib.Path("work/release-notes.md").write_text(notes)
+          pathlib.Path("work/release-tag.txt").write_text(tag)
+          print("release tag:", tag)
+          PY
+          TAG="$(cat work/release-tag.txt)"
+          ZIP="$(ls work/dist/*.zip)"
+          SHAFILE="$(ls work/dist/*.sha256)"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; not duplicating."
+          else
+            gh release create "$TAG" "$ZIP" "$SHAFILE" \
+              --latest \
+              --title "KOReader + NickelMenu $TAG" \
+              --notes-file work/release-notes.md
+          fi

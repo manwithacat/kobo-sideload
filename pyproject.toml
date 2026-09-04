@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kobo-sideload"
+version = "0.1.0"
+description = "Install current KOReader on a Kobo from GitHub, without one-click zips or KFMon"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["kobo", "koreader", "nickelmenu", "ebook"]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/manwithacat/kobo-sideload"
+Releases = "https://github.com/manwithacat/kobo-sideload/releases/latest"
+
+[tool.setuptools.package-data]
+kobo_sideload = ["bundled/*"]
+
+[project.scripts]
+kobo-sideload = "kobo_sideload.__main__:cli"
+
+[tool.setuptools.packages.find]
+include = ["kobo_sideload*"]
+exclude = ["tests*"]
