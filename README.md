@@ -17,7 +17,7 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
    | Windows | Right-click `install.ps1` → Run with PowerShell |
    | Linux | `bash install.sh` |
 
-5. Eject the Kobo. It reboots as if applying an update — that is NickelMenu installing.
+5. When the installer asks to eject, say yes. The Kobo reboots as if applying an update — that is NickelMenu installing.
 6. Open **NickelMenu** on the Home screen and tap **KOReader**.
 
 Sideloads go in the **`KOReader/`** folder the installer creates on the USB volume. Nickel is configured to ignore it, so store books stay in My Books. In KOReader, open that folder and long-press → **Set as HOME directory**. Drop `.fb2` / `.fb2.zip` there over USB; do not put books in `.adds/koreader/`.

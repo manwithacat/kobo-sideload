@@ -10,7 +10,7 @@ from pathlib import Path
 from .archive import payload_is_ready
 from .assemble import assemble, extract_payload_zip, package_payload
 from .catalog import Artifact, discover
-from .device import find_kobo, install_payload, plan_install, verify_install
+from .device import eject_kobo, find_kobo, install_payload, plan_install, verify_install
 from .download import fetch_artifact, sha256_file
 from .paths import default_home, work_dirs
 
@@ -142,8 +142,20 @@ def cmd_install(args: argparse.Namespace) -> int:
             print(f"  missing: {path}")
         return 1
     print()
-    print("Install complete. Eject the Kobo safely and wait for it to reboot")
-    print("(it will look like a firmware update — that is NickelMenu installing).")
+    print("Install complete.")
+    if args.yes:
+        should_eject = True
+    else:
+        answer = input("Eject the Kobo now so it can install NickelMenu? [Y/n] ").strip().lower()
+        should_eject = answer in {"", "y", "yes"}
+    if should_eject:
+        try:
+            eject_kobo(volume)
+            print("Ejected. Leave the cable until it reboots (it looks like a firmware update).")
+        except Exception as exc:  # noqa: BLE001
+            print(f"Could not eject automatically ({exc}). Eject KOBOeReader from Finder yourself.")
+    else:
+        print("Eject KOBOeReader from Finder when you are ready.")
     print("Then open NickelMenu on the Home screen and tap KOReader.")
     return 0
 

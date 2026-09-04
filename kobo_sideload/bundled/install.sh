@@ -75,6 +75,28 @@ ensure_exclude() {
 	} >>"$conf"
 }
 
+eject_kobo() {
+	local mount="$1"
+	case "$(uname -s)" in
+		Darwin)
+			diskutil eject "$mount" || return 1
+			;;
+		Linux)
+			local src=""
+			src="$(findmnt -nlo SOURCE "$mount" 2>/dev/null || true)"
+			if [[ -n "$src" ]] && command -v udisksctl >/dev/null 2>&1; then
+				udisksctl unmount -b "$src" || umount "$mount" || return 1
+			else
+				umount "$mount" || return 1
+			fi
+			;;
+		*)
+			return 1
+			;;
+	esac
+	return 0
+}
+
 KOBO="$(find_kobo)"
 echo "Kobo mount: $KOBO"
 echo "Copying KOReader..."
@@ -97,6 +119,25 @@ sync 2>/dev/null || true
 
 echo
 echo "Install complete."
-echo "Eject the Kobo safely and wait for it to reboot (it looks like a firmware update)."
-echo "Then open NickelMenu on the Home screen and tap KOReader."
 echo "Put FB2 and other sideloads in the KOReader folder on the USB volume."
+echo
+if [[ -t 0 ]]; then
+	read -r -p "Eject the Kobo now so it can install NickelMenu? [Y/n] " ans || ans="n"
+else
+	echo "No terminal for a prompt; eject KOBOeReader yourself."
+	ans="n"
+fi
+ans="${ans:-Y}"
+case "$ans" in
+	Y|y|yes|YES)
+		if eject_kobo "$KOBO"; then
+			echo "Ejected. Leave the cable until it reboots (it looks like a firmware update)."
+		else
+			echo "Could not eject automatically. Eject KOBOeReader from Finder yourself."
+		fi
+		;;
+	*)
+		echo "Eject KOBOeReader from Finder when you are ready."
+		;;
+esac
+echo "Then open NickelMenu on the Home screen and tap KOReader."

@@ -1,10 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from kobo_sideload.config import BOOKS_FOLDER, EXCLUDE_SYNC_FOLDERS, EXCLUDE_SYNC_KEY
 from kobo_sideload.device import (
     KoboVolume,
+    eject_kobo,
     ensure_exclude_sync_folders,
     install_payload,
     verify_install,
@@ -79,6 +81,19 @@ class DeviceTests(unittest.TestCase):
             text = conf.read_text(encoding="utf-8")
             self.assertIn(f"{EXCLUDE_SYNC_KEY}={EXCLUDE_SYNC_FOLDERS}", text)
             self.assertEqual(text.count(f"{EXCLUDE_SYNC_KEY}="), 1)
+
+    def test_eject_uses_diskutil_on_macos(self) -> None:
+        volume = KoboVolume(
+            mountpoint=Path("/Volumes/KOBOeReader"),
+            kobo_dir=Path("/Volumes/KOBOeReader/.kobo"),
+            conf_path=Path("/Volumes/KOBOeReader/.kobo/Kobo/Kobo eReader.conf"),
+        )
+        uname = mock.Mock(sysname="Darwin")
+        with mock.patch("kobo_sideload.device.os.name", "posix"), mock.patch(
+            "kobo_sideload.device.os.uname", return_value=uname
+        ), mock.patch("kobo_sideload.device.subprocess.check_call") as call:
+            eject_kobo(volume)
+        call.assert_called_once_with(["diskutil", "eject", "/Volumes/KOBOeReader"])
 
 
 if __name__ == "__main__":

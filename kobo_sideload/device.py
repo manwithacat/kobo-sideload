@@ -179,6 +179,33 @@ def install_payload(payload_dir: Path, volume: KoboVolume) -> None:
         os.sync()
 
 
+def eject_kobo(volume: KoboVolume) -> None:
+    """Unmount/eject the USB volume so Nickel can apply KoboRoot.tgz."""
+    mount = str(volume.mountpoint)
+    if os.name == "nt":
+        letter = volume.mountpoint.drive.rstrip("\\/")
+        script = (
+            "$shell = New-Object -ComObject Shell.Application; "
+            f"$item = $shell.NameSpace(17).ParseName('{letter}'); "
+            "if (-not $item) { throw 'volume not found' }; "
+            "$item.InvokeVerb('Eject')"
+        )
+        subprocess.check_call(["powershell", "-NoProfile", "-Command", script])
+        return
+    if os.uname().sysname == "Darwin":
+        subprocess.check_call(["diskutil", "eject", mount])
+        return
+    src = subprocess.check_output(
+        ["findmnt", "-nlo", "SOURCE", mount],
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    try:
+        subprocess.check_call(["udisksctl", "unmount", "-b", src])
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        subprocess.check_call(["umount", mount])
+
+
 def verify_install(volume: KoboVolume) -> list[str]:
     missing = []
     checks = [

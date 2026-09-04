@@ -72,7 +72,21 @@ if (-not (Test-Path (Join-Path $KoboDir "KoboRoot.tgz"))) { Die "Copy failed: Ko
 
 Write-Host ""
 Write-Host "Install complete."
-Write-Host "Eject the Kobo safely and wait for it to reboot (it looks like a firmware update)."
-Write-Host "Then open NickelMenu on the Home screen and tap KOReader."
 Write-Host "Put FB2 and other sideloads in the KOReader folder on the USB volume."
+$ans = Read-Host "Eject the Kobo now so it can install NickelMenu? [Y/n]"
+if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        $item = $shell.NameSpace(17).ParseName($vol.DriveLetter + ":")
+        if ($null -eq $item) { throw "volume not found" }
+        $item.InvokeVerb("Eject")
+        Write-Host "Ejected. Leave the cable until it reboots (it looks like a firmware update)."
+    } catch {
+        Write-Host "Could not eject automatically. Eject KOBOeReader in Explorer yourself."
+        Write-Host $_
+    }
+} else {
+    Write-Host "Eject KOBOeReader in Explorer when you are ready."
+}
+Write-Host "Then open NickelMenu on the Home screen and tap KOReader."
 Read-Host "Press Enter to exit"
