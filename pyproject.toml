@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kobo-sideload"
-version = "0.1.7"
+version = "0.1.8"
 description = "Install current KOReader on a Kobo from GitHub, without one-click zips or KFMon"
 readme = "README.md"
 requires-python = ">=3.9"

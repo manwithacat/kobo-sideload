@@ -6,7 +6,7 @@ HERE="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 LABEL="KOBOeReader"
 EXCLUDE_LINE='ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 STARDICT_MARKER='-- kobo-sideload dictionaries'
-STARDICT_LINE='STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"'
+STARDICT_ASSIGN='["STARDICT_DATA_DIR"] = "/mnt/onboard/.adds/dictionaries"'
 CATALOG_FILE="$HERE/dictionaries.tsv"
 
 die() {
@@ -112,15 +112,36 @@ dict_cache_dir() {
 
 ensure_stardict_lua() {
 	local lua="$1"
+	local tmp
 	mkdir -p "$(dirname "$lua")"
-	if [[ -f "$lua" ]] && grep -Fq "$STARDICT_MARKER" "$lua"; then
+	touch "$lua"
+	if grep -Fq "$STARDICT_MARKER" "$lua" || grep -q '^STARDICT_DATA_DIR' "$lua"; then
+		tmp="$(mktemp)"
+		awk -v marker="$STARDICT_MARKER" '
+			$0 == marker { skip=1; next }
+			skip && /^STARDICT_DATA_DIR/ { skip=0; next }
+			{ skip=0; print }
+		' "$lua" >"$tmp" && mv "$tmp" "$lua"
+	fi
+	if grep -q '\["STARDICT_DATA_DIR"\]' "$lua"; then
 		return 0
 	fi
-	if [[ -s "$lua" ]]; then
-		printf '\n%s\n%s\n' "$STARDICT_MARKER" "$STARDICT_LINE" >>"$lua"
-	else
-		printf '%s\n%s\n' "$STARDICT_MARKER" "$STARDICT_LINE" >"$lua"
+	if grep -q 'return[[:space:]]*{' "$lua"; then
+		tmp="$(mktemp)"
+		awk -v assign="$STARDICT_ASSIGN" '
+			!done && match($0, /return[[:space:]]*\{/) {
+				print substr($0, 1, RSTART + RLENGTH - 1)
+				print "    " assign ","
+				rest = substr($0, RSTART + RLENGTH)
+				if (rest != "") print rest
+				done=1
+				next
+			}
+			{ print }
+		' "$lua" >"$tmp" && mv "$tmp" "$lua"
+		return 0
 	fi
+	printf '%s\nreturn {\n    %s,\n}\n' "$STARDICT_MARKER" "$STARDICT_ASSIGN" >"$lua"
 }
 
 ensure_dictionaries_folder() {

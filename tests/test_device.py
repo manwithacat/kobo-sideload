@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -146,8 +147,42 @@ class DeviceTests(unittest.TestCase):
             self.assertTrue(ensure_stardict_lua(koreader))
             self.assertFalse(ensure_stardict_lua(koreader))
             text = (koreader / "defaults.custom.lua").read_text(encoding="utf-8")
-            self.assertEqual(text.count(STARDICT_LUA_MARKER), 1)
+            self.assertIn("return {", text)
             self.assertIn(STARDICT_LUA_LINE, text)
+            self.assertEqual(text.count(STARDICT_LUA_LINE), 1)
+
+    def test_stardict_lua_inserts_into_returned_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            koreader = Path(tmp) / "koreader"
+            koreader.mkdir()
+            lua = koreader / "defaults.custom.lua"
+            lua.write_text("-- ./defaults.custom.lua\nreturn {}\n", encoding="utf-8")
+            self.assertTrue(ensure_stardict_lua(koreader))
+            text = lua.read_text(encoding="utf-8")
+            self.assertIn("return {", text)
+            self.assertIn(STARDICT_LUA_LINE, text)
+            self.assertNotIn("STARDICT_DATA_DIR = ", text.split("return", 1)[-1].split("{", 1)[0])
+            self.assertFalse(ensure_stardict_lua(koreader))
+
+    def test_stardict_lua_repairs_dead_assignment_after_return(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            koreader = Path(tmp) / "koreader"
+            koreader.mkdir()
+            lua = koreader / "defaults.custom.lua"
+            lua.write_text(
+                "-- ./defaults.custom.lua\n"
+                "return {}\n"
+                "\n"
+                "-- kobo-sideload dictionaries\n"
+                'STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"\n',
+                encoding="utf-8",
+            )
+            self.assertTrue(ensure_stardict_lua(koreader))
+            text = lua.read_text(encoding="utf-8")
+            self.assertIn(STARDICT_LUA_LINE, text)
+            self.assertIsNone(re.search(r"(?m)^STARDICT_DATA_DIR\s*=", text))
+            after_return = text.split("return", 1)[1]
+            self.assertIn(STARDICT_LUA_LINE, after_return)
 
     def test_merge_copytree_keeps_extra_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

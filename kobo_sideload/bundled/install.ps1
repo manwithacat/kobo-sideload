@@ -5,7 +5,7 @@ $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Label = "KOBOeReader"
 $ExcludeLine = 'ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 $StarDictMarker = "-- kobo-sideload dictionaries"
-$StarDictLine = 'STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"'
+$StarDictAssign = '["STARDICT_DATA_DIR"] = "/mnt/onboard/.adds/dictionaries"'
 
 function Die($msg) {
     Write-Host "error: $msg"
@@ -26,8 +26,19 @@ function Ensure-StarDictLua($lua) {
     $text = ""
     if (Test-Path $lua) { $text = Get-Content -Raw -ErrorAction SilentlyContinue $lua }
     if ($null -eq $text) { $text = "" }
-    if ($text -like "*$StarDictMarker*") { return }
-    Add-Content -Path $lua -Value "`n$StarDictMarker`n$StarDictLine`n"
+    $text = [regex]::Replace($text, "(?s)\n*" + [regex]::Escape($StarDictMarker) + "\nSTARDICT_DATA_DIR\s*=\s*""[^""]*""\s*\n?", "`n")
+    if ($text -match '\["STARDICT_DATA_DIR"\]\s*=') {
+        Set-Content -Path $lua -Value $text -NoNewline
+        return
+    }
+    if ($text -match 'return\s*\{') {
+        $text = [regex]::Replace($text, '(return\s*\{)', "`$1`n    $StarDictAssign,", 1)
+        if (-not $text.EndsWith("`n")) { $text += "`n" }
+        Set-Content -Path $lua -Value $text -NoNewline
+        return
+    }
+    $body = "$StarDictMarker`nreturn {`n    $StarDictAssign,`n}`n"
+    Set-Content -Path $lua -Value $body -NoNewline
 }
 
 function Ensure-DictionariesFolder($dest) {

@@ -52,7 +52,10 @@ USER_AGENT = "kobo-sideload/0.1 (+https://github.com/manwithacat/kobo-sideload)"
 DICT_FOLDER = ".adds/dictionaries"
 STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"
 STARDICT_LUA_MARKER = "-- kobo-sideload dictionaries"
-STARDICT_LUA_LINE = f'STARDICT_DATA_DIR = "{STARDICT_DATA_DIR}"'
+# KOReader dofile()s this file and uses the returned table (see luadefaults.lua).
+# A bare assignment after `return {}` is dead code and is ignored.
+STARDICT_LUA_ASSIGN = f'["STARDICT_DATA_DIR"] = "{STARDICT_DATA_DIR}"'
+STARDICT_LUA_LINE = STARDICT_LUA_ASSIGN
 DICT_README = """StarDict dictionaries for KOReader
 ==================================
 

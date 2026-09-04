@@ -164,16 +164,43 @@ def ensure_dictionaries_folder(volume: KoboVolume) -> Path:
     return dest
 
 
+_DEAD_STARDICT_ASSIGN = re.compile(
+    r"\n*"
+    + re.escape(STARDICT_LUA_MARKER)
+    + r"\nSTARDICT_DATA_DIR\s*=\s*\"[^\"]*\"\s*\n?",
+)
+
+
 def ensure_stardict_lua(koreader_dir: Path) -> bool:
-    """Point KOReader at .adds/dictionaries. Returns True if the file changed."""
+    """Put STARDICT_DATA_DIR in the returned defaults.custom.lua table.
+
+    KOReader loads that file with dofile() and keeps the returned table. A
+    global assignment after `return {}` never runs.
+    """
     path = koreader_dir / "defaults.custom.lua"
-    existing = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-    if STARDICT_LUA_MARKER in existing or STARDICT_LUA_LINE in existing:
+    original = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    text = _DEAD_STARDICT_ASSIGN.sub("\n", original)
+    if re.search(r'\["STARDICT_DATA_DIR"\]\s*=', text):
+        if text != original:
+            if text and not text.endswith("\n"):
+                text += "\n"
+            path.write_text(text, encoding="utf-8")
+            return True
         return False
-    block = f"{STARDICT_LUA_MARKER}\n{STARDICT_LUA_LINE}\n"
-    if existing and not existing.endswith("\n"):
-        block = "\n" + block
-    path.write_text(existing + block, encoding="utf-8")
+    key = f"    {STARDICT_LUA_LINE},"
+    if re.search(r"return\s*\{", text):
+        text, count = re.subn(
+            r"return\s*\{",
+            lambda match: match.group(0) + "\n" + key + "\n",
+            text,
+            count=1,
+        )
+        if count:
+            if not text.endswith("\n"):
+                text += "\n"
+            path.write_text(text, encoding="utf-8")
+            return True
+    path.write_text(f"{STARDICT_LUA_MARKER}\nreturn {{\n{key}\n}}\n", encoding="utf-8")
     return True
 
 
@@ -273,8 +300,8 @@ def verify_install(volume: KoboVolume) -> list[str]:
             missing.append(str(path))
     lua = volume.mountpoint / ".adds" / "koreader" / "defaults.custom.lua"
     lua_text = lua.read_text(encoding="utf-8", errors="replace") if lua.is_file() else ""
-    if STARDICT_LUA_MARKER not in lua_text and STARDICT_LUA_LINE not in lua_text:
-        missing.append(f"{lua} (STARDICT_DATA_DIR missing)")
+    if '["STARDICT_DATA_DIR"]' not in lua_text:
+        missing.append(f"{lua} (STARDICT_DATA_DIR missing from returned table)")
     if volume.conf_path.exists():
         text = volume.conf_path.read_text(encoding="utf-8", errors="replace")
         if f"{EXCLUDE_SYNC_KEY}={EXCLUDE_SYNC_FOLDERS}" not in text:
