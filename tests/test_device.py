@@ -172,7 +172,7 @@ class DeviceTests(unittest.TestCase):
         )
         uname = mock.Mock(sysname="Darwin")
         with mock.patch("kobo_sideload.device.os.name", "posix"), mock.patch(
-            "kobo_sideload.device.os.uname", return_value=uname
+            "kobo_sideload.device.os.uname", return_value=uname, create=True
         ), mock.patch("kobo_sideload.device.subprocess.check_call") as call:
             eject_kobo(volume)
         call.assert_called_once_with(["diskutil", "eject", "/Volumes/KOBOeReader"])
