@@ -28,13 +28,20 @@ Right-click → Open often cannot override that.
    Windows
      Right-click install.ps1 → Run with PowerShell
 
-4. The installer asks to eject the Kobo. Say yes. It will reboot as if
+4. Optional dictionaries: the zip does not include them. When asked,
+   type skip, en, ru, or en,ru. The computer downloads them onto
+   .adds/dictionaries (the reader has no Wi-Fi while USB is plugged in).
+   You can also download later in KOReader:
+     Search → Dictionary settings → Download dictionaries.
+
+5. The installer asks to eject the Kobo. Say yes. It will reboot as if
    installing an update — that is NickelMenu being installed.
 
-5. After reboot, tap the **KOReader** tab on the Home screen (not More),
-   or open My Books and look for KOReader in that menu.
+6. After reboot, tap the **KOReader** tab on the Home screen (not More),
+   or open My Books and look for KOReader in that menu. Long-press a
+   word in a book to look it up.
 
-6. Put .fb2 / .fb2.zip (and other sideloads) in the KOReader folder on
+7. Put .fb2 / .fb2.zip (and other sideloads) in the KOReader folder on
    the Kobo USB volume. Nickel ignores that folder. In KOReader, open it
    and long-press → Set as HOME directory.
 

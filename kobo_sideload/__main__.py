@@ -4,13 +4,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from .archive import payload_is_ready
 from .assemble import assemble, extract_payload_zip, package_payload
 from .catalog import Artifact, discover
-from .device import eject_kobo, find_kobo, install_payload, plan_install, verify_install
+from .device import (
+    dictionaries_dir,
+    eject_kobo,
+    ensure_dictionaries_folder,
+    ensure_stardict_lua,
+    find_kobo,
+    install_payload,
+    plan_install,
+    verify_install,
+)
+from .dicts import install_specs, parse_langs, specs_for_langs
 from .download import fetch_artifact, sha256_file
 from .paths import default_home, work_dirs
 
@@ -119,6 +130,56 @@ def cmd_package(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prompt_dict_langs() -> list[str]:
+    print()
+    print("Dictionaries are optional (not in the app zip). Long-press a word in KOReader to look it up.")
+    print("  skip   none now — download later in KOReader over Wi-Fi")
+    print("  en     English (GCIDE)")
+    print("  ru     Russian (Ushakov + Russian-English)")
+    print("  en,ru  both")
+    try:
+        answer = input("Download dictionaries now? [skip/en/ru/en,ru] ").strip()
+    except EOFError:
+        answer = "skip"
+    if not answer:
+        return []
+    try:
+        return parse_langs(answer)
+    except ValueError as exc:
+        print(f"{exc}; skipping dictionaries.")
+        return []
+
+
+def _resolve_dict_langs(args: argparse.Namespace) -> list[str]:
+    explicit = getattr(args, "dicts", None)
+    if explicit is not None:
+        return parse_langs(explicit)
+    if args.yes or not sys.stdin.isatty():
+        return []
+    return _prompt_dict_langs()
+
+
+def _install_dicts_onto(volume, langs: list[str], cache_dir: Path, *, force: bool = False) -> int:
+    if not langs:
+        return 0
+    koreader = volume.mountpoint / ".adds" / "koreader"
+    if not (koreader / "koreader.sh").is_file():
+        raise RuntimeError("KOReader is not installed on this Kobo. Run `kobo-sideload install` first.")
+    dest = ensure_dictionaries_folder(volume)
+    ensure_stardict_lua(koreader)
+    specs = specs_for_langs(langs)
+    print()
+    print(f"Downloading {len(specs)} dictionary archive(s) onto {dest}...")
+    for spec in specs:
+        print(f"  {spec.key}: {spec.name} ({spec.license})")
+    installed = install_specs(specs, dest, cache_dir, force=force)
+    for path in installed:
+        print(f"    -> {path.name}")
+    if hasattr(os, "sync"):
+        os.sync()
+    return 0
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     payload = _ensure_payload(args)
     volume = find_kobo()
@@ -143,6 +204,17 @@ def cmd_install(args: argparse.Namespace) -> int:
         return 1
     print()
     print("Install complete.")
+    dict_ok = True
+    try:
+        langs = _resolve_dict_langs(args)
+        _install_dicts_onto(volume, langs, _dirs(args.root)["cache"], force=args.force)
+    except Exception as exc:  # noqa: BLE001
+        dict_ok = False
+        print(
+            f"Dictionary download failed ({exc}). "
+            "KOReader is installed; try `kobo-sideload dictionaries --lang en,ru` "
+            "or download in KOReader over Wi-Fi."
+        )
     if args.yes:
         should_eject = True
     else:
@@ -157,6 +229,29 @@ def cmd_install(args: argparse.Namespace) -> int:
     else:
         print("Eject KOBOeReader from Finder when you are ready.")
     print("Then open NickelMenu on the Home screen and tap KOReader.")
+    return 0 if dict_ok else 1
+
+
+def cmd_dictionaries(args: argparse.Namespace) -> int:
+    volume = find_kobo()
+    print(f"Kobo mount: {volume.mountpoint}")
+    if args.lang is not None:
+        langs = parse_langs(args.lang)
+    elif args.yes:
+        raise RuntimeError("pass --lang en, ru, or en,ru")
+    else:
+        langs = _prompt_dict_langs()
+    if not langs:
+        print("No dictionaries selected.")
+        print(f"Folder: {dictionaries_dir(volume)}")
+        print("In KOReader: Search → Dictionary settings → Download dictionaries (needs Wi-Fi).")
+        return 0
+    if args.dry_run:
+        for spec in specs_for_langs(langs):
+            print(f"  would fetch {spec.key}: {spec.url}")
+        return 0
+    _install_dicts_onto(volume, langs, _dirs(args.root)["cache"], force=args.force)
+    print("Long-press a word in a book to look it up.")
     return 0
 
 
@@ -224,6 +319,26 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="install a payload zip from CI / GitHub Releases instead of fetching",
     )
+    install_p.add_argument(
+        "--dicts",
+        default=None,
+        metavar="LANGS",
+        help="download dictionaries (en, ru, or en,ru). --yes skips dictionaries unless this is set",
+    )
+
+    dict_p = sub.add_parser(
+        "dictionaries",
+        help="download StarDict files onto a mounted Kobo (not in the app zip)",
+    )
+    dict_p.add_argument(
+        "--lang",
+        default=None,
+        metavar="LANGS",
+        help="en, ru, or en,ru. Prompted if omitted",
+    )
+    dict_p.add_argument("--force", action="store_true", help="re-download even if cached")
+    dict_p.add_argument("--yes", action="store_true", help="do not prompt (requires --lang)")
+    dict_p.add_argument("--dry-run", action="store_true", help="print URLs only")
 
     sub.add_parser("status", help="inspect a mounted Kobo")
 
@@ -240,12 +355,15 @@ def main(argv: list[str] | None = None) -> int:
     args.yes = getattr(args, "yes", False)
     args.dry_run = getattr(args, "dry_run", False)
     args.from_zip = getattr(args, "from_zip", None)
+    args.dicts = getattr(args, "dicts", None)
+    args.lang = getattr(args, "lang", None)
     commands = {
         "discover": cmd_discover,
         "fetch": cmd_fetch,
         "assemble": cmd_assemble,
         "package": cmd_package,
         "install": cmd_install,
+        "dictionaries": cmd_dictionaries,
         "status": cmd_status,
         "build": cmd_build,
     }

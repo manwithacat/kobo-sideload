@@ -39,6 +39,8 @@ class AssembleTests(unittest.TestCase):
             self.assertEqual(manifest["omitted"], ["kfmon", "plato"])
             self.assertIn("koreader", manifest["upstream_licenses"])
             self.assertTrue((payload / "KOReader" / "README.txt").is_file())
+            self.assertFalse((payload / ".adds" / "dictionaries").exists())
+            self.assertFalse((payload / ".adds" / "koreader" / "defaults.custom.lua").exists())
 
     def test_rejects_tarball_without_libnm(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

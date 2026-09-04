@@ -1,3 +1,3 @@
 """Sideload KOReader onto a Kobo without NiLuJe's one-click zip."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"

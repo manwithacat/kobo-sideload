@@ -17,8 +17,9 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
    | Windows | Right-click `install.ps1` → Run with PowerShell |
    | Linux | `bash install.sh` |
 
-5. When the installer asks to eject, say yes. The Kobo reboots as if applying an update — that is NickelMenu installing.
-6. Open **NickelMenu** on the Home screen and tap **KOReader**.
+5. Optional: when asked, type **en**, **ru**, or **en,ru** to download dictionaries (the computer fetches them; USB mode has no Wi-Fi). Skip and download later in KOReader: **Search → Dictionary settings → Download dictionaries**.
+6. When the installer asks to eject, say yes. The Kobo reboots as if applying an update — that is NickelMenu installing.
+7. Open **NickelMenu** on the Home screen and tap **KOReader**. Long-press a word to look it up.
 
 Sideloads go in the **`KOReader/`** folder the installer creates on the USB volume. Nickel is configured to ignore it, so store books stay in My Books. In KOReader, open that folder and long-press → **Set as HOME directory**. Drop `.fb2` / `.fb2.zip` there over USB; do not put books in `.adds/koreader/`.
 
@@ -46,8 +47,10 @@ Each zip contains:
 | `.adds/nm/koreader` | NickelMenu item that runs `koreader.sh` |
 | `.kobo/KoboRoot.tgz` | NickelMenu plugin (applied on eject) |
 | `KOReader/` | Sideload library (FB2 etc.). Nickel is told not to index it. Reinstalls do not wipe books already there. |
-| `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo (`bash install.sh` on Mac/Linux — not a double-click) |
+| `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo (`bash install.sh` on Mac/Linux — not a double-click). Merges `.adds/koreader/` so settings and dictionaries survive a reinstall. |
 | `READ ME FIRST.txt` | The same steps as above |
+
+Dictionaries are **not** in the zip (size and licences). The installer creates `.adds/dictionaries/` and points KOReader at it with `defaults.custom.lua`. Reinstalls merge the app tree and leave that folder alone.
 
 Do not drag `.adds` onto the reader in Finder or Explorer. That is how silent failures happen.
 
@@ -58,7 +61,10 @@ Python 3.9+, no third-party packages:
 ```text
 pipx install git+https://github.com/manwithacat/kobo-sideload
 kobo-sideload install          # fetch current GitHub assets onto a mounted Kobo
+kobo-sideload install --dicts en,ru   # same, and fetch English+Russian StarDict files
+kobo-sideload dictionaries --lang en,ru
 kobo-sideload build            # produce the same zip CI publishes
+# zip installer, non-interactive: KOBO_SIDELOAD_DICTS=en,ru bash install.sh
 ```
 
 Tests: `python3 -m unittest discover -s tests -v`

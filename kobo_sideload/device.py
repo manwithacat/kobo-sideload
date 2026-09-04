@@ -14,12 +14,15 @@ from pathlib import Path
 from .config import (
     BOOKS_FOLDER,
     BOOKS_README_NAME,
+    DICT_README,
     EXCLUDE_SYNC_FOLDERS,
     EXCLUDE_SYNC_KEY,
     EXCLUDE_SYNC_SECTION,
     KOBO_CONF_REL,
     KOBO_VOLUME_LABEL,
     NICKELMENU_CONFIG_NAME,
+    STARDICT_LUA_LINE,
+    STARDICT_LUA_MARKER,
 )
 
 
@@ -145,10 +148,58 @@ def ensure_books_folder(payload_dir: Path, volume: KoboVolume) -> None:
         shutil.copy2(src_readme, dest / BOOKS_README_NAME)
 
 
+def merge_copytree(src: Path, dest: Path) -> None:
+    """Copy src onto dest, overwriting matching files and leaving extras in dest."""
+    shutil.copytree(src, dest, dirs_exist_ok=True)
+
+
+def dictionaries_dir(volume: KoboVolume) -> Path:
+    return volume.mountpoint / ".adds" / "dictionaries"
+
+
+def ensure_dictionaries_folder(volume: KoboVolume) -> Path:
+    dest = dictionaries_dir(volume)
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "README.txt").write_text(DICT_README, encoding="utf-8")
+    return dest
+
+
+def ensure_stardict_lua(koreader_dir: Path) -> bool:
+    """Point KOReader at .adds/dictionaries. Returns True if the file changed."""
+    path = koreader_dir / "defaults.custom.lua"
+    existing = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    if STARDICT_LUA_MARKER in existing or STARDICT_LUA_LINE in existing:
+        return False
+    block = f"{STARDICT_LUA_MARKER}\n{STARDICT_LUA_LINE}\n"
+    if existing and not existing.endswith("\n"):
+        block = "\n" + block
+    path.write_text(existing + block, encoding="utf-8")
+    return True
+
+
+def migrate_legacy_dicts(koreader_dir: Path, dest: Path) -> None:
+    """Copy in-app data/dict trees that predate STARDICT_DATA_DIR."""
+    old = koreader_dir / "data" / "dict"
+    if not old.is_dir():
+        return
+    for item in old.iterdir():
+        if item.name.startswith("."):
+            continue
+        target = dest / item.name
+        if target.exists():
+            continue
+        if item.is_dir():
+            shutil.copytree(item, target)
+        elif item.is_file():
+            shutil.copy2(item, target)
+
+
 def plan_install(payload_dir: Path, volume: KoboVolume) -> list[str]:
     return [
-        f"{volume.mountpoint / '.adds' / 'koreader'}  <-  payload/.adds/koreader",
+        f"{volume.mountpoint / '.adds' / 'koreader'}  <-  payload/.adds/koreader (merge, never wiped)",
         f"{volume.mountpoint / '.adds' / 'nm' / NICKELMENU_CONFIG_NAME}  <-  NickelMenu launch item",
+        f"{dictionaries_dir(volume)}  <-  StarDict folder (created; downloads are optional)",
+        f"{volume.mountpoint / '.adds' / 'koreader' / 'defaults.custom.lua'}  <-  STARDICT_DATA_DIR",
         f"{volume.mountpoint / BOOKS_FOLDER}  <-  sideload library (created, never wiped)",
         f"{volume.kobo_dir / 'KoboRoot.tgz'}  <-  NickelMenu plugin (applied on eject)",
         f"{volume.conf_path}  <-  ExcludeSyncFolders (idempotent)",
@@ -166,12 +217,13 @@ def install_payload(payload_dir: Path, volume: KoboVolume) -> None:
     dest_koreader = volume.mountpoint / ".adds" / "koreader"
     dest_nm_dir = volume.mountpoint / ".adds" / "nm"
     dest_nm_dir.mkdir(parents=True, exist_ok=True)
-    if dest_koreader.exists():
-        shutil.rmtree(dest_koreader)
-    shutil.copytree(src_koreader, dest_koreader)
+    merge_copytree(src_koreader, dest_koreader)
     shutil.copy2(src_nm, dest_nm_dir / NICKELMENU_CONFIG_NAME)
     shutil.copy2(src_root, volume.kobo_dir / "KoboRoot.tgz")
     ensure_books_folder(payload_dir, volume)
+    dest_dicts = ensure_dictionaries_folder(volume)
+    migrate_legacy_dicts(dest_koreader, dest_dicts)
+    ensure_stardict_lua(dest_koreader)
     ensure_exclude_sync_folders(volume.conf_path)
     shutil.copy2(payload_dir / "MANIFEST.json", volume.mountpoint / ".adds" / "kobo-sideload-manifest.json")
 
@@ -211,6 +263,7 @@ def verify_install(volume: KoboVolume) -> list[str]:
     checks = [
         volume.mountpoint / ".adds" / "koreader" / "koreader.sh",
         volume.mountpoint / ".adds" / "nm" / NICKELMENU_CONFIG_NAME,
+        dictionaries_dir(volume),
         volume.mountpoint / BOOKS_FOLDER,
         volume.kobo_dir / "KoboRoot.tgz",
         volume.conf_path,
@@ -218,6 +271,10 @@ def verify_install(volume: KoboVolume) -> list[str]:
     for path in checks:
         if not path.exists():
             missing.append(str(path))
+    lua = volume.mountpoint / ".adds" / "koreader" / "defaults.custom.lua"
+    lua_text = lua.read_text(encoding="utf-8", errors="replace") if lua.is_file() else ""
+    if STARDICT_LUA_MARKER not in lua_text and STARDICT_LUA_LINE not in lua_text:
+        missing.append(f"{lua} (STARDICT_DATA_DIR missing)")
     if volume.conf_path.exists():
         text = volume.conf_path.read_text(encoding="utf-8", errors="replace")
         if f"{EXCLUDE_SYNC_KEY}={EXCLUDE_SYNC_FOLDERS}" not in text:

@@ -49,6 +49,27 @@ KOBO_CONF_REL = ("Kobo", "Kobo eReader.conf")
 
 USER_AGENT = "kobo-sideload/0.1 (+https://github.com/manwithacat/kobo-sideload)"
 
+DICT_FOLDER = ".adds/dictionaries"
+STARDICT_DATA_DIR = "/mnt/onboard/.adds/dictionaries"
+STARDICT_LUA_MARKER = "-- kobo-sideload dictionaries"
+STARDICT_LUA_LINE = f'STARDICT_DATA_DIR = "{STARDICT_DATA_DIR}"'
+DICT_README = """StarDict dictionaries for KOReader
+==================================
+
+Long-press a word in a book to look it up.
+
+This folder is outside the KOReader app tree so reinstalling the app
+does not delete dictionaries.
+
+You can also download dictionaries on the device:
+  KOReader → Search (magnifying glass) → Dictionary settings
+           → Download dictionaries
+  (needs Wi-Fi; the Kobo cannot download while it is plugged in over USB)
+
+Sources used by `kobo-sideload dictionaries` are the same tar.gz files
+KOReader itself offers. See NOTICE.md for licences.
+"""
+
 KOREADER_REPO = ("koreader", "koreader")
 NICKELMENU_REPO = ("pgaskin", "NickelMenu")
 

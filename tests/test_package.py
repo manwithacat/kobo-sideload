@@ -42,6 +42,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn("READ ME FIRST.txt", names)
             self.assertIn("KOReader/README.txt", names)
             self.assertNotIn("Install to Kobo.command", names)
+            self.assertFalse(any(name.startswith(".adds/dictionaries") for name in names))
             restored = extract_payload_zip(dist, tmp_path / "restored")
             self.assertTrue(payload_is_ready(restored))
             manifest = json.loads((restored / "MANIFEST.json").read_text(encoding="utf-8"))
