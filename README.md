@@ -17,7 +17,7 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
    | Windows | Right-click `install.ps1` → Run with PowerShell |
    | Linux | `bash install.sh` |
 
-5. Optional: when asked, type a language code (**en**, **ru**, …), comma-separated codes, or **all** to download dictionaries (the computer fetches them; USB mode has no Wi-Fi). Skip and download later in KOReader: **Search → Dictionary settings → Download dictionaries**.
+5. Optional dictionaries: the installer prints a numbered list from its catalog. Type **1** for Russian, **A** for every listed language, or **S** to skip (you can download later in KOReader over Wi-Fi). USB mode has no network, so the computer fetches them.
 6. When the installer asks to eject, say yes. The Kobo reboots as if applying an update — that is NickelMenu installing.
 7. Open **NickelMenu** on the Home screen and tap **KOReader**. Long-press a word to look it up.
 
@@ -62,10 +62,10 @@ Python 3.9+, no third-party packages:
 ```text
 pipx install git+https://github.com/manwithacat/kobo-sideload
 kobo-sideload install          # fetch current GitHub assets onto a mounted Kobo
-kobo-sideload install --dicts en,ru   # same, and fetch English+Russian StarDict files
-kobo-sideload dictionaries --lang en,ru
+kobo-sideload install --dicts ru      # same, and fetch Russian StarDict files
+kobo-sideload dictionaries --lang ru
 kobo-sideload build            # produce the same zip CI publishes
-# zip installer, non-interactive: KOBO_SIDELOAD_DICTS=en,ru bash install.sh
+# zip installer, non-interactive: KOBO_SIDELOAD_DICTS=ru bash install.sh
 ```
 
 Tests: `python3 -m unittest discover -s tests -v`

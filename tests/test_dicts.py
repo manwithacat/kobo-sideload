@@ -49,14 +49,21 @@ class DictTests(unittest.TestCase):
     def test_parse_langs(self) -> None:
         self.assertEqual(parse_langs("skip"), [])
         self.assertEqual(parse_langs(""), [])
+        self.assertEqual(parse_langs("s"), [])
         self.assertEqual(parse_langs("en"), ["en"])
         self.assertEqual(parse_langs("ru"), ["ru"])
+        self.assertEqual(parse_langs("1"), ["ru"])
+        self.assertEqual(parse_langs("2"), ["en"])
+        self.assertEqual(parse_langs("1,2"), ["ru", "en"])
         self.assertEqual(parse_langs("en,ru"), ["en", "ru"])
         self.assertEqual(parse_langs("en, ru"), ["en", "ru"])
         self.assertEqual(parse_langs("both"), available_langs())
         self.assertEqual(parse_langs("all"), available_langs())
+        self.assertEqual(parse_langs("a"), available_langs())
         with self.assertRaises(ValueError):
             parse_langs("fr")
+        with self.assertRaises(ValueError):
+            parse_langs("9")
 
     def test_specs_for_langs(self) -> None:
         en = specs_for_langs(["en"])
@@ -70,10 +77,16 @@ class DictTests(unittest.TestCase):
     def test_catalog_file_is_the_source_of_truth(self) -> None:
         self.assertEqual(load_catalog(), CATALOG)
         self.assertEqual(catalog_path(), bundled_dir() / "dictionaries.tsv")
-        self.assertEqual(available_langs(), ["en", "ru"])
-        self.assertIn("  en     English", "\n".join(format_lang_prompt()))
-        self.assertIn("  ru     Russian", "\n".join(format_lang_prompt()))
-        self.assertEqual(lang_choice_hint(), "skip/en/ru/all")
+        self.assertEqual(available_langs(), ["ru", "en"])
+        prompt = "\n".join(format_lang_prompt())
+        self.assertIn("  1) Russian", prompt)
+        self.assertIn("  2) English", prompt)
+        self.assertIn("Russian-English short dictionary", prompt)
+        self.assertIn("Ushakov explanatory dictionary (Russian)", prompt)
+        self.assertIn("GNU Collaborative International Dictionary of English", prompt)
+        self.assertIn("  A) all of the above", prompt)
+        self.assertIn("  S) skip", prompt)
+        self.assertEqual(lang_choice_hint(), "1-2, A, or S")
         for spec in CATALOG:
             self.assertTrue(spec.url.startswith("http"))
             self.assertTrue(spec.filename.endswith(".tar.gz"))
@@ -113,9 +126,13 @@ class DictTests(unittest.TestCase):
             catalog = load_catalog(path)
             self.assertEqual(available_langs(catalog), ["en", "fr"])
             self.assertEqual(parse_langs("fr", catalog), ["fr"])
+            self.assertEqual(parse_langs("2", catalog), ["fr"])
             self.assertEqual(parse_langs("all", catalog), ["en", "fr"])
             self.assertEqual([spec.key for spec in specs_for_langs(["fr"], catalog)], ["foo"])
-            self.assertIn("  fr     French", "\n".join(format_lang_prompt(catalog)))
+            prompt = "\n".join(format_lang_prompt(catalog))
+            self.assertIn("  1) English", prompt)
+            self.assertIn("  2) French", prompt)
+            self.assertIn("French dict", prompt)
 
     def test_load_catalog_rejects_zst_and_bad_lang(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

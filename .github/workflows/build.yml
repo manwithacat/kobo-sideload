@@ -70,7 +70,7 @@ jobs:
                (do not double-click a .command — Gatekeeper blocks it)
              - Windows: right-click `install.ps1` → Run with PowerShell
              - Linux: `bash install.sh`
-          5. Optional: type a language code, comma-separated codes, or `all` when asked for dictionaries (or skip and download later in KOReader over Wi-Fi).
+          5. Optional: the installer lists languages from its catalog. Type a number (1 = Russian), `A` for all, or `S` to skip (or download later in KOReader over Wi-Fi).
           6. Eject. The Kobo reboots as if updating. Then **NickelMenu → KOReader**. Long-press a word to look it up.
 
           Dictionaries are not in this zip. Reinstalls merge the app and leave `.adds/dictionaries` alone.

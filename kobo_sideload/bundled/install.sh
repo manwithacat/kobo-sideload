@@ -230,31 +230,78 @@ catalog_langs() {
 
 print_catalog_prompt() {
 	echo "Dictionaries are optional (not in this zip). Long-press a word in KOReader to look it up." >&2
-	echo "  skip   none now — download later in KOReader over Wi-Fi" >&2
+	echo >&2
 	if [[ -f "$CATALOG_FILE" ]]; then
 		awk -F'\t' 'NF>=7 && $1 !~ /^#/ {
 			n=split($2, a, ",")
 			for (i=1;i<=n;i++) {
 				gsub(/ /, "", a[i])
-				if (a[i] != "" && !seen[a[i]]++) printf "  %-6s %s\n", a[i], $3
+				if (a[i] == "") continue
+				if (!(a[i] in seen)) {
+					seen[a[i]] = ++idx
+					code[idx] = a[i]
+					label[idx] = $3
+					names[idx] = "       " $4
+				} else {
+					names[seen[a[i]]] = names[seen[a[i]]] "\n       " $4
+				}
 			}
+		}
+		END {
+			for (j=1; j<=idx; j++) {
+				printf "  %d) %s\n%s\n", j, label[j], names[j]
+			}
+			if (idx > 1) print "  A) all of the above"
+			if (idx > 0) print "  S) skip — download later in KOReader over Wi-Fi"
 		}' "$CATALOG_FILE" >&2
-		echo "  all    every listed language" >&2
 	fi
 }
 
+catalog_lang_at() {
+	awk -v want="$1" -F'\t' 'NF>=7 && $1 !~ /^#/ {
+		n=split($2, a, ",")
+		for (i=1;i<=n;i++) {
+			gsub(/ /, "", a[i])
+			if (a[i] != "" && !seen[a[i]]++) {
+				idx++
+				if (idx == want) { print a[i]; exit }
+			}
+		}
+	}' "$CATALOG_FILE"
+}
+
+catalog_lang_count() {
+	local langs
+	langs="$(catalog_langs)"
+	if [[ -z "$langs" ]]; then
+		printf '0'
+		return
+	fi
+	awk -F',' '{ print NF }' <<<"$langs"
+}
+
 normalize_dict_langs() {
-	local raw known wanted part
+	local raw known wanted part mapped count
 	raw="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
 	case "$raw" in
-		""|skip|none|no|n) printf ''; return 0 ;;
-		both|all) catalog_langs; return 0 ;;
+		""|skip|none|no|n|s) printf ''; return 0 ;;
+		both|all|a) catalog_langs; return 0 ;;
 	esac
 	known=",$(catalog_langs),"
+	count="$(catalog_lang_count)"
 	wanted=""
 	IFS=',' read -ra parts <<<"$raw"
 	for part in "${parts[@]}"; do
 		[[ -n "$part" ]] || continue
+		if [[ "$part" =~ ^[0-9]+$ ]]; then
+			mapped="$(catalog_lang_at "$part")"
+			if [[ -z "$mapped" ]]; then
+				echo "choice $part is not on the list (use 1-$count, A, or S); skipping." >&2
+				printf ''
+				return 0
+			fi
+			part="$mapped"
+		fi
 		case "$known" in
 			*",$part,"*)
 				case ",$wanted," in
@@ -263,7 +310,7 @@ normalize_dict_langs() {
 				esac
 				;;
 			*)
-				echo "unknown dictionary choice: $part (use skip, language codes, or all); skipping." >&2
+				echo "unknown dictionary choice: $part (use a list number, A, or S); skipping." >&2
 				printf ''
 				return 0
 				;;
@@ -273,27 +320,28 @@ normalize_dict_langs() {
 }
 
 choose_dict_langs() {
-	local raw hint
+	local raw count hint
 	if [[ -n "${KOBO_SIDELOAD_DICTS:-}" ]]; then
 		normalize_dict_langs "$KOBO_SIDELOAD_DICTS"
 		return 0
 	fi
 	if [[ ! -t 0 ]]; then
-		hint="$(catalog_langs)"
-		echo "No terminal for a dictionary prompt; skipping. Later: KOBO_SIDELOAD_DICTS=${hint:-all} bash install.sh" >&2
+		echo "No terminal for a dictionary prompt; skipping. Later: KOBO_SIDELOAD_DICTS=ru bash install.sh" >&2
 		printf ''
 		return 0
 	fi
 	echo >&2
 	print_catalog_prompt
-	hint="$(catalog_langs)"
-	if [[ -n "$hint" ]]; then
-		hint="skip/${hint}/all"
+	count="$(catalog_lang_count)"
+	if [[ "$count" -gt 1 ]]; then
+		hint="1-$count, A, or S"
+	elif [[ "$count" -eq 1 ]]; then
+		hint="1 or S"
 	else
-		hint="skip"
+		hint="S"
 	fi
-	read -r -p "Download dictionaries now? [$hint] " raw || raw="skip"
-	normalize_dict_langs "${raw:-skip}"
+	read -r -p "Choose dictionaries [$hint] " raw || raw="S"
+	normalize_dict_langs "${raw:-S}"
 }
 
 install_dicts() {

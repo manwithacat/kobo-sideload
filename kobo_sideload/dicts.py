@@ -101,25 +101,31 @@ def lang_labels(catalog: tuple[DictSpec, ...] | None = None) -> dict[str, str]:
 
 
 def lang_choice_hint(catalog: tuple[DictSpec, ...] | None = None) -> str:
-    langs = available_langs(catalog)
-    if len(langs) > 1:
-        return "skip/" + "/".join(langs) + "/all"
-    if langs:
-        return f"skip/{langs[0]}"
-    return "skip"
+    n = len(available_langs(catalog))
+    if n == 0:
+        return "S"
+    if n == 1:
+        return "1 or S"
+    return f"1-{n}, A, or S"
 
 
 def format_lang_prompt(catalog: tuple[DictSpec, ...] | None = None) -> list[str]:
+    catalog = catalog or CATALOG
     labels = lang_labels(catalog)
     langs = available_langs(catalog)
     lines = [
         "Dictionaries are optional (not in the app zip). Long-press a word in KOReader to look it up.",
-        "  skip   none now — download later in KOReader over Wi-Fi",
+        "",
     ]
-    for lang in langs:
-        lines.append(f"  {lang:<6} {labels.get(lang, lang)}")
-    if len(langs) > 1:
-        lines.append("  all    every listed language")
+    for index, lang in enumerate(langs, start=1):
+        lines.append(f"  {index}) {labels.get(lang, lang)}")
+        for spec in catalog:
+            if lang in spec.langs:
+                lines.append(f"       {spec.name}")
+    if langs:
+        if len(langs) > 1:
+            lines.append("  A) all of the above")
+        lines.append("  S) skip — download later in KOReader over Wi-Fi")
     return lines
 
 
@@ -127,22 +133,32 @@ def parse_langs(value: str, catalog: tuple[DictSpec, ...] | None = None) -> list
     catalog = catalog or CATALOG
     known = available_langs(catalog)
     raw = (value or "").strip().lower().replace(";", ",")
-    if raw in {"", "skip", "none", "no", "n"}:
+    if raw in {"", "skip", "none", "no", "n", "s"}:
         return []
-    if raw in {"both", "all"}:
+    if raw in {"both", "all", "a"}:
         return list(known)
     parts = [part.strip() for part in raw.replace(" ", ",").split(",") if part.strip()]
-    unknown = [part for part in parts if part not in known]
-    if unknown:
-        raise ValueError(
-            f"unknown dictionary language(s): {', '.join(unknown)}. "
-            f"Known: {', '.join(known) or '(none)'}"
-        )
-    seen: list[str] = []
+    resolved: list[str] = []
     for part in parts:
-        if part not in seen:
-            seen.append(part)
-    return seen
+        if part.isdigit():
+            index = int(part)
+            if index < 1 or index > len(known):
+                raise ValueError(
+                    f"choice {index} is not on the list (use 1-{len(known)}, A, or S)"
+                    if known
+                    else "no dictionaries are in the catalog"
+                )
+            lang = known[index - 1]
+        else:
+            lang = part
+        if lang not in known:
+            raise ValueError(
+                f"unknown dictionary language(s): {lang}. "
+                f"Known: {', '.join(known) or '(none)'}"
+            )
+        if lang not in resolved:
+            resolved.append(lang)
+    return resolved
 
 
 def specs_for_langs(langs: list[str], catalog: tuple[DictSpec, ...] | None = None) -> list[DictSpec]:

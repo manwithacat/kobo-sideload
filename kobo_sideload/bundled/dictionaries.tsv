@@ -4,7 +4,7 @@
 # key	langs	label	name	license	filename	url
 # langs: comma-separated ISO 639 codes. label: shown once per code in the installer prompt.
 # Prefer KOReader's own tar.gz files (frontend/ui/data/dictionaries.lua), not .tar.zst.
-# See CONTRIBUTING.md.
-gcide	en	English	GNU Collaborative International Dictionary of English	GPLv3+	gcide.tar.gz	http://build.koreader.rocks/download/dict/gcide.tar.gz
+# See CONTRIBUTING.md. Languages are numbered in this file's order in the installer menu.
 rus-eng-short	ru	Russian	Russian-English short dictionary	GPL	stardict-rus-eng-short.tar.gz	https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/002c/stardict-comn_sdict05_rus_eng_short-2.4.2.tar.gz
 ushakov	ru	Russian	Ushakov explanatory dictionary (Russian)	see upstream ifo	stardict-ushakov.tar.gz	https://gitlab.com/avsej/dicts-stardict-form-xdxf/raw/d636cc5e8d4a47e22ac7466f4af6d435a8a3f650/001/stardict-comn_dictd03_ushakov-2.4.2.tar.gz
+gcide	en	English	GNU Collaborative International Dictionary of English	GPLv3+	gcide.tar.gz	http://build.koreader.rocks/download/dict/gcide.tar.gz

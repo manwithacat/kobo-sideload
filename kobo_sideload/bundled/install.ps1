@@ -136,14 +136,22 @@ function CatalogLangs($catalog) {
 function Normalize-DictLangs($value, $catalog) {
     $raw = ($value -replace '\s', '').ToLowerInvariant()
     $known = @(CatalogLangs $catalog)
-    if ($raw -in @("", "skip", "none", "no", "n")) { return @() }
-    if ($raw -in @("both", "all")) { return @($known) }
+    if ($raw -in @("", "skip", "none", "no", "n", "s")) { return @() }
+    if ($raw -in @("both", "all", "a")) { return @($known) }
     $wanted = New-Object System.Collections.Generic.List[string]
     foreach ($part in @($raw.Split(",") | Where-Object { $_ })) {
+        if ($part -match '^\d+$') {
+            $idx = [int]$part
+            if ($idx -lt 1 -or $idx -gt $known.Count) {
+                Write-Host "choice $part is not on the list (use 1-$($known.Count), A, or S); skipping."
+                return @()
+            }
+            $part = $known[$idx - 1]
+        }
         if ($known -contains $part) {
             if (-not $wanted.Contains($part)) { [void]$wanted.Add($part) }
         } else {
-            Write-Host "unknown dictionary choice: $part (use skip, language codes, or all); skipping."
+            Write-Host "unknown dictionary choice: $part (use a list number, A, or S); skipping."
             return @()
         }
     }
@@ -157,22 +165,31 @@ function Choose-DictLangs($catalog) {
     $known = @(CatalogLangs $catalog)
     Write-Host ""
     Write-Host "Dictionaries are optional (not in this zip). Long-press a word in KOReader to look it up."
-    Write-Host "  skip   none now — download later in KOReader over Wi-Fi"
+    Write-Host ""
+    $index = 0
     $seen = @{}
     foreach ($spec in @($catalog)) {
         foreach ($lang in @($spec.Langs)) {
             if ($lang -and -not $seen.ContainsKey($lang)) {
-                $seen[$lang] = $true
-                Write-Host ("  {0,-6} {1}" -f $lang, $spec.Label)
+                $index += 1
+                $seen[$lang] = $index
+                Write-Host ("  {0}) {1}" -f $index, $spec.Label)
+            }
+            if ($lang -and $seen.ContainsKey($lang)) {
+                Write-Host ("       {0}" -f $spec.Name)
             }
         }
     }
     if ($known.Count -gt 1) {
-        Write-Host "  all    every listed language"
+        Write-Host "  A) all of the above"
     }
-    $hint = "skip"
-    if ($known.Count -gt 0) { $hint = "skip/" + ($known -join "/") + "/all" }
-    $raw = Read-Host "Download dictionaries now? [$hint]"
+    if ($known.Count -gt 0) {
+        Write-Host "  S) skip — download later in KOReader over Wi-Fi"
+    }
+    $hint = "S"
+    if ($known.Count -eq 1) { $hint = "1 or S" }
+    elseif ($known.Count -gt 1) { $hint = "1-$($known.Count), A, or S" }
+    $raw = Read-Host "Choose dictionaries [$hint]"
     if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
     return Normalize-DictLangs $raw $catalog
 }

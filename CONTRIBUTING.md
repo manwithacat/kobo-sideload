@@ -69,9 +69,13 @@ are unreliable; the installer checks that the tarball contains `.ifo` files.
 
 ### Prompt the user will see
 
-Codes come from the catalog. `skip` and `all` are always understood, and
-comma-separated codes work (`fr,de`). `KOBO_SIDELOAD_DICTS` and
-`kobo-sideload install --dicts` use the same language list.
+Languages are numbered in **file order** (first distinct `langs` code is `1)`).
+Each menu entry lists the dictionary titles for that code. The user types a
+number (`1`), comma-separated numbers (`1,2`), `A` for all, or `S` to skip.
+
+Scripts can still use codes: `KOBO_SIDELOAD_DICTS=ru` and
+`kobo-sideload install --dicts ru`. Put the language you want first in the
+TSV if it should be option `1`.
 
 ## Tests and local install
 

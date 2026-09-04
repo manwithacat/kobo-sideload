@@ -143,7 +143,7 @@ def _prompt_dict_langs() -> list[str]:
         print(line)
     hint = lang_choice_hint()
     try:
-        answer = input(f"Download dictionaries now? [{hint}] ").strip()
+        answer = input(f"Choose dictionaries [{hint}] ").strip()
     except EOFError:
         answer = "skip"
     if not answer:
@@ -243,7 +243,7 @@ def cmd_dictionaries(args: argparse.Namespace) -> int:
     if args.lang is not None:
         langs = parse_langs(args.lang)
     elif args.yes:
-        raise RuntimeError(f"pass --lang {lang_choice_hint()}")
+        raise RuntimeError("pass --lang with a list number, a language code, or all")
     else:
         langs = _prompt_dict_langs()
     if not langs:
@@ -330,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="LANGS",
         help=(
-            f"download dictionaries ({langs}, comma-separated, or all). "
+            f"download dictionaries (menu number, {langs}, or all). "
             "--yes skips dictionaries unless this is set"
         ),
     )
@@ -343,7 +343,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lang",
         default=None,
         metavar="LANGS",
-        help=f"{langs}, comma-separated, or all. Prompted if omitted",
+        help=f"menu number, {langs}, or all. Prompted if omitted",
     )
     dict_p.add_argument("--force", action="store_true", help="re-download even if cached")
     dict_p.add_argument("--yes", action="store_true", help="do not prompt (requires --lang)")
