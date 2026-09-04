@@ -45,9 +45,11 @@ jobs:
           python3 <<'PY'
           import json, os, pathlib, textwrap
           catalog = json.loads(pathlib.Path("work/catalog.json").read_text())
+          manifest = json.loads(pathlib.Path("work/payload/MANIFEST.json").read_text())
           ko = catalog["artifacts"]["koreader"]["tag"]
           nm = catalog["artifacts"]["nickelmenu"]["tag"]
-          tag = f"koreader-{ko}-nickelmenu-{nm}"
+          sideload = manifest["sideload_version"]
+          tag = f"koreader-{ko}-nickelmenu-{nm}-sideload-{sideload}"
           zips = list(pathlib.Path("work/dist").glob("*.zip"))
           if len(zips) != 1:
               raise SystemExit(f"expected one zip in work/dist, found {zips}")
@@ -64,7 +66,8 @@ jobs:
           2. Download **`{zip_path.name}`** from this release (not the source zip).
           3. Unzip it **on your computer**.
           4. Run the installer inside:
-             - macOS: double-click `Install to Kobo.command` (Right-click → Open if blocked)
+             - macOS: open Terminal, type `bash ` (with a space), drag `install.sh` onto the window, Return
+               (do not double-click a .command — Gatekeeper blocks it)
              - Windows: right-click `install.ps1` → Run with PowerShell
              - Linux: `bash install.sh`
           5. Eject. The Kobo reboots as if updating. Then **NickelMenu → KOReader**.

@@ -106,7 +106,10 @@ def bundled_dir() -> Path:
 def package_payload(payload_dir: Path, dist_dir: Path, koreader: Artifact, nickelmenu: Artifact) -> Path:
     if not payload_is_ready(payload_dir):
         raise RuntimeError(f"{payload_dir} is not an assembled payload")
-    name = f"kobo-koreader-{koreader.tag}-nickelmenu-{nickelmenu.tag}.zip"
+    name = (
+        f"kobo-koreader-{koreader.tag}-nickelmenu-{nickelmenu.tag}"
+        f"-sideload-{__version__}.zip"
+    )
     stage = dist_dir / ".stage"
     if stage.exists():
         shutil.rmtree(stage)

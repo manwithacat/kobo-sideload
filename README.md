@@ -13,7 +13,7 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
 
    | Computer | What to run |
    | --- | --- |
-   | macOS | Double-click `Install to Kobo.command` (Right-click → Open if macOS blocks it) |
+   | macOS | Open Terminal, type `bash ` (with a space), drag `install.sh` onto the window, press Return. Do **not** double-click a `.command` file — Gatekeeper blocks unsigned downloads and Right-click → Open often cannot override it. |
    | Windows | Right-click `install.ps1` → Run with PowerShell |
    | Linux | `bash install.sh` |
 
@@ -43,8 +43,8 @@ Each zip contains:
 | `.adds/koreader/` | KOReader |
 | `.adds/nm/koreader` | NickelMenu item that runs `koreader.sh` |
 | `.kobo/KoboRoot.tgz` | NickelMenu plugin (applied on eject) |
-| `Install to Kobo.command` / `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo |
-| `INSTALL.txt` | The same steps as above |
+| `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo (`bash install.sh` on Mac/Linux — not a double-click) |
+| `READ ME FIRST.txt` | The same steps as above |
 
 Do not drag `.adds` onto the reader in Finder or Explorer. That is how silent failures happen.
 

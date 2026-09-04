@@ -4,19 +4,29 @@ KOReader for Kobo — install this release
 This zip is already assembled. You do not need GitHub, Python, pipx,
 KFMon, or Plato.
 
+Do NOT double-click anything that macOS calls an "app" or ".command".
+Apple blocks unsigned scripts downloaded from the internet, and
+Right-click → Open often cannot override that.
+
 1. Unzip this archive on your COMPUTER (not onto the Kobo).
-   macOS Safari may already have unzipped it for you.
-   Leave the hidden ".adds" and ".kobo" folders alone — the installer uses them.
+   Safari may already have unzipped it. Leave the hidden ".adds" and
+   ".kobo" folders alone — the installer uses them.
 
 2. Plug the Kobo in over USB. Unlock it. Wait until a drive named
    "KOBOeReader" appears. Stay on the Home screen.
 
-3. Run the installer for your computer:
+3. Run the installer:
 
-   macOS:   double-click "Install to Kobo.command"
-            (if macOS blocks it: Right-click → Open → Open)
-   Windows: right-click install.ps1 → Run with PowerShell
-   Linux:   bash install.sh
+   macOS and Linux
+     Open Terminal, type the word bash and a space, then drag
+     install.sh from this folder onto the Terminal window. Press Return.
+
+     Example once you have changed into this folder:
+
+       bash install.sh
+
+   Windows
+     Right-click install.ps1 → Run with PowerShell
 
 4. Eject the Kobo safely. It will reboot as if installing an update.
    That is NickelMenu being installed.

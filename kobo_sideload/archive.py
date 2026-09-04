@@ -8,7 +8,7 @@ import time
 import zipfile
 from pathlib import Path
 
-EXECUTABLE_NAMES = {"install.sh", "Install to Kobo.command"}
+EXECUTABLE_NAMES = {"install.sh"}
 
 
 def safe_extract_zip(archive: Path, dest: Path) -> None:
