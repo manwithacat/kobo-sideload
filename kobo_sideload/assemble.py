@@ -11,7 +11,13 @@ from pathlib import Path
 from . import __version__
 from .archive import payload_is_ready, safe_extract_zip, write_zip
 from .catalog import Artifact
-from .config import NICKELMENU_CONFIG, NICKELMENU_CONFIG_NAME
+from .config import (
+    BOOKS_FOLDER,
+    BOOKS_README,
+    BOOKS_README_NAME,
+    NICKELMENU_CONFIG,
+    NICKELMENU_CONFIG_NAME,
+)
 
 
 def _require_koreader_dir(extracted: Path) -> Path:
@@ -59,6 +65,10 @@ def assemble(
     shutil.copy2(nickelmenu_tgz, kobo_root)
     _assert_nickelmenu_tarball(kobo_root)
 
+    books = payload_dir / BOOKS_FOLDER
+    books.mkdir()
+    (books / BOOKS_README_NAME).write_text(BOOKS_README, encoding="utf-8")
+
     if not (payload_dir / ".adds" / "koreader" / "koreader.sh").is_file():
         raise RuntimeError("assembled payload is missing .adds/koreader/koreader.sh")
 
@@ -75,6 +85,7 @@ def assemble(
             ".adds/koreader/": "KOReader application",
             f".adds/nm/{NICKELMENU_CONFIG_NAME}": "NickelMenu item that execs koreader.sh",
             ".kobo/KoboRoot.tgz": "NickelMenu Qt plugin; applied on eject/reboot",
+            f"{BOOKS_FOLDER}/": "Sideload library; Nickel is told not to index it",
         },
         "how_to_launch": (
             "After the Kobo finishes its 'update' reboot, open NickelMenu "

@@ -36,6 +36,7 @@ class AssembleTests(unittest.TestCase):
             self.assertEqual(manifest["launcher"], "nickelmenu")
             self.assertEqual(manifest["omitted"], ["kfmon", "plato"])
             self.assertIn("koreader", manifest["upstream_licenses"])
+            self.assertTrue((payload / "KOReader" / "README.txt").is_file())
 
     def test_rejects_tarball_without_libnm(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -33,8 +33,9 @@ Right-click → Open often cannot override that.
 
 5. After reboot, open NickelMenu on the Home screen and tap KOReader.
 
-Put FB2 (and other) books in any normal folder. Open them from KOReader,
-not from Kobo's own library.
+6. Put .fb2 / .fb2.zip (and other sideloads) in the KOReader folder on
+   the Kobo USB volume. Nickel ignores that folder. In KOReader, open it
+   and long-press → Set as HOME directory.
 
 Do not drag folders onto the Kobo in Finder or Explorer. Hidden directories
 are easy to miss, and that is how installs silently fail.

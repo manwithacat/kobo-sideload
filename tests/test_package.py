@@ -40,6 +40,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn("install.sh", names)
             self.assertIn("install.ps1", names)
             self.assertIn("READ ME FIRST.txt", names)
+            self.assertIn("KOReader/README.txt", names)
             self.assertNotIn("Install to Kobo.command", names)
             restored = extract_payload_zip(dist, tmp_path / "restored")
             self.assertTrue(payload_is_ready(restored))

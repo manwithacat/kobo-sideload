@@ -76,6 +76,7 @@ def cmd_assemble(args: argparse.Namespace) -> int:
         ".adds/koreader/koreader.sh",
         ".adds/nm/koreader",
         ".kobo/KoboRoot.tgz",
+        "KOReader/README.txt",
         "MANIFEST.json",
     ):
         print(f"  {rel}")

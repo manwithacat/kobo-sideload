@@ -20,7 +20,7 @@ No MobileRead one-click zip. No KFMon. No Plato. No Python on your computer unle
 5. Eject the Kobo. It reboots as if applying an update — that is NickelMenu installing.
 6. Open **NickelMenu** on the Home screen and tap **KOReader**.
 
-Put FB2 (and other) books in any normal folder. Open them from KOReader, not from Kobo’s library.
+Sideloads go in the **`KOReader/`** folder the installer creates on the USB volume. Nickel is configured to ignore it, so store books stay in My Books. In KOReader, open that folder and long-press → **Set as HOME directory**. Drop `.fb2` / `.fb2.zip` there over USB; do not put books in `.adds/koreader/`.
 
 Firmware **4.6–4.x** (Libra Colour 4.45 included). Firmware **5.x** is not supported yet (NickelMenu does not load).
 
@@ -43,6 +43,7 @@ Each zip contains:
 | `.adds/koreader/` | KOReader |
 | `.adds/nm/koreader` | NickelMenu item that runs `koreader.sh` |
 | `.kobo/KoboRoot.tgz` | NickelMenu plugin (applied on eject) |
+| `KOReader/` | Sideload library (FB2 etc.). Nickel is told not to index it. Reinstalls do not wipe books already there. |
 | `install.sh` / `install.ps1` | Copies the hidden folders onto the Kobo (`bash install.sh` on Mac/Linux — not a double-click) |
 | `READ ME FIRST.txt` | The same steps as above |
 

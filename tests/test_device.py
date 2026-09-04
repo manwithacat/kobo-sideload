@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kobo_sideload.config import EXCLUDE_SYNC_FOLDERS, EXCLUDE_SYNC_KEY
+from kobo_sideload.config import BOOKS_FOLDER, EXCLUDE_SYNC_FOLDERS, EXCLUDE_SYNC_KEY
 from kobo_sideload.device import (
     KoboVolume,
     ensure_exclude_sync_folders,
@@ -30,6 +30,8 @@ def _payload(root: Path) -> Path:
     (payload / ".kobo").mkdir()
     (payload / ".kobo" / "KoboRoot.tgz").write_bytes(b"tgz")
     (payload / "MANIFEST.json").write_text("{}\n", encoding="utf-8")
+    (payload / BOOKS_FOLDER).mkdir()
+    (payload / BOOKS_FOLDER / "README.txt").write_text("sideload library\n", encoding="utf-8")
     return payload
 
 
@@ -51,6 +53,32 @@ class DeviceTests(unittest.TestCase):
             self.assertEqual(verify_install(volume), [])
             self.assertTrue((volume.mountpoint / ".adds" / "koreader" / "koreader.sh").is_file())
             self.assertTrue((volume.kobo_dir / "KoboRoot.tgz").is_file())
+            self.assertTrue((volume.mountpoint / BOOKS_FOLDER / "README.txt").is_file())
+
+    def test_books_folder_is_not_wiped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            volume = _fake_volume(tmp_path / "kobo")
+            keep = volume.mountpoint / BOOKS_FOLDER / "keep.fb2"
+            keep.parent.mkdir()
+            keep.write_text("mine\n", encoding="utf-8")
+            install_payload(_payload(tmp_path), volume)
+            self.assertEqual(keep.read_text(encoding="utf-8"), "mine\n")
+            self.assertTrue((volume.mountpoint / BOOKS_FOLDER / "README.txt").is_file())
+
+    def test_exclude_sync_folders_upgrades_old_value(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            conf = Path(tmp) / "Kobo eReader.conf"
+            conf.write_text(
+                "[FeatureSettings]\n"
+                r"ExcludeSyncFolders=(\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)"
+                "\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(ensure_exclude_sync_folders(conf))
+            text = conf.read_text(encoding="utf-8")
+            self.assertIn(f"{EXCLUDE_SYNC_KEY}={EXCLUDE_SYNC_FOLDERS}", text)
+            self.assertEqual(text.count(f"{EXCLUDE_SYNC_KEY}="), 1)
 
 
 if __name__ == "__main__":

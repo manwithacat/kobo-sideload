@@ -4,7 +4,7 @@ set -euo pipefail
 
 HERE="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 LABEL="KOBOeReader"
-EXCLUDE_LINE='ExcludeSyncFolders=(\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
+EXCLUDE_LINE='ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 
 die() {
 	echo "error: $*" >&2
@@ -55,8 +55,18 @@ copy_tree() {
 
 ensure_exclude() {
 	local conf="$1"
+	local tmp
 	mkdir -p "$(dirname "$conf")"
-	if [[ -f "$conf" ]] && grep -Fq "$EXCLUDE_LINE" "$conf"; then
+	touch "$conf"
+	if grep -Fq "$EXCLUDE_LINE" "$conf"; then
+		return 0
+	fi
+	if grep -q '^ExcludeSyncFolders=' "$conf"; then
+		tmp="$(mktemp)"
+		EXCLUDE_LINE="$EXCLUDE_LINE" awk '
+			!done && /^ExcludeSyncFolders=/ { print ENVIRON["EXCLUDE_LINE"]; done=1; next }
+			{ print }
+		' "$conf" >"$tmp" && mv "$tmp" "$conf"
 		return 0
 	fi
 	{
@@ -75,6 +85,10 @@ cp "$HERE/.kobo/KoboRoot.tgz" "$KOBO/.kobo/KoboRoot.tgz"
 if [[ -f "$HERE/MANIFEST.json" ]]; then
 	cp "$HERE/MANIFEST.json" "$KOBO/.adds/kobo-sideload-manifest.json"
 fi
+mkdir -p "$KOBO/KOReader"
+if [[ -f "$HERE/KOReader/README.txt" ]]; then
+	cp "$HERE/KOReader/README.txt" "$KOBO/KOReader/README.txt"
+fi
 ensure_exclude "$KOBO/.kobo/Kobo/Kobo eReader.conf"
 sync 2>/dev/null || true
 
@@ -85,3 +99,4 @@ echo
 echo "Install complete."
 echo "Eject the Kobo safely and wait for it to reboot (it looks like a firmware update)."
 echo "Then open NickelMenu on the Home screen and tap KOReader."
+echo "Put FB2 and other sideloads in the KOReader folder on the USB volume."

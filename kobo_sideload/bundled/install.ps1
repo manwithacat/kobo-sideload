@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Label = "KOBOeReader"
-$ExcludeLine = 'ExcludeSyncFolders=(\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
+$ExcludeLine = 'ExcludeSyncFolders=((KOReader)|\\.(?!kobo|adobe).+|([^.][^/]*/)+\\..+)'
 
 function Die($msg) {
     Write-Host "error: $msg"
@@ -45,11 +45,26 @@ if (Test-Path $manifest) {
     Copy-Item -Force $manifest (Join-Path $Mount ".adds\kobo-sideload-manifest.json")
 }
 
+$books = Join-Path $Mount "KOReader"
+New-Item -ItemType Directory -Force -Path $books | Out-Null
+$booksReadme = Join-Path $Here "KOReader\README.txt"
+if (Test-Path $booksReadme) {
+    Copy-Item -Force $booksReadme (Join-Path $books "README.txt")
+}
+
 $confDir = Join-Path $KoboDir "Kobo"
 $conf = Join-Path $confDir "Kobo eReader.conf"
 New-Item -ItemType Directory -Force -Path $confDir | Out-Null
-if (-not (Test-Path $conf) -or -not (Select-String -Path $conf -Pattern ([regex]::Escape($ExcludeLine)) -Quiet)) {
-    Add-Content -Path $conf -Value "`r`n[FeatureSettings]`r`n$ExcludeLine`r`n"
+if (-not (Test-Path $conf)) { New-Item -ItemType File -Path $conf | Out-Null }
+$text = Get-Content -Raw -ErrorAction SilentlyContinue $conf
+if ($null -eq $text) { $text = "" }
+if ($text -notlike "*$ExcludeLine*") {
+    if ($text -match '(?m)^ExcludeSyncFolders=.*$') {
+        $text = [regex]::Replace($text, '(?m)^ExcludeSyncFolders=.*$', $ExcludeLine)
+        Set-Content -Path $conf -Value $text -NoNewline
+    } else {
+        Add-Content -Path $conf -Value "`r`n[FeatureSettings]`r`n$ExcludeLine`r`n"
+    }
 }
 
 if (-not (Test-Path (Join-Path $destKo "koreader.sh"))) { Die "Copy failed: koreader.sh missing on device." }
@@ -59,4 +74,5 @@ Write-Host ""
 Write-Host "Install complete."
 Write-Host "Eject the Kobo safely and wait for it to reboot (it looks like a firmware update)."
 Write-Host "Then open NickelMenu on the Home screen and tap KOReader."
+Write-Host "Put FB2 and other sideloads in the KOReader folder on the USB volume."
 Read-Host "Press Enter to exit"

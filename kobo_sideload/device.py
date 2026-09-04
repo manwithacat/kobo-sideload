@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import plistlib
+import re
 import shutil
 import string
 import subprocess
@@ -11,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import (
+    BOOKS_FOLDER,
+    BOOKS_README_NAME,
     EXCLUDE_SYNC_FOLDERS,
     EXCLUDE_SYNC_KEY,
     EXCLUDE_SYNC_SECTION,
@@ -112,22 +115,41 @@ def _windows_mount() -> Path | None:
 
 
 def ensure_exclude_sync_folders(conf_path: Path) -> bool:
-    """Append ExcludeSyncFolders if it is not already present. Returns True if written."""
+    """Write ExcludeSyncFolders, replacing an older value if needed. Returns True if changed."""
     conf_path.parent.mkdir(parents=True, exist_ok=True)
     existing = conf_path.read_text(encoding="utf-8", errors="replace") if conf_path.exists() else ""
     needle = f"{EXCLUDE_SYNC_KEY}={EXCLUDE_SYNC_FOLDERS}"
     if needle in existing:
         return False
+    updated, count = re.subn(
+        rf"^{re.escape(EXCLUDE_SYNC_KEY)}=.*$",
+        lambda _match: needle,
+        existing,
+        count=1,
+        flags=re.M,
+    )
+    if count:
+        conf_path.write_text(updated, encoding="utf-8")
+        return True
     block = f"\n[{EXCLUDE_SYNC_SECTION}]\n{needle}\n"
     with conf_path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(block)
     return True
 
 
+def ensure_books_folder(payload_dir: Path, volume: KoboVolume) -> None:
+    dest = volume.mountpoint / BOOKS_FOLDER
+    dest.mkdir(parents=True, exist_ok=True)
+    src_readme = payload_dir / BOOKS_FOLDER / BOOKS_README_NAME
+    if src_readme.is_file():
+        shutil.copy2(src_readme, dest / BOOKS_README_NAME)
+
+
 def plan_install(payload_dir: Path, volume: KoboVolume) -> list[str]:
     return [
         f"{volume.mountpoint / '.adds' / 'koreader'}  <-  payload/.adds/koreader",
         f"{volume.mountpoint / '.adds' / 'nm' / NICKELMENU_CONFIG_NAME}  <-  NickelMenu launch item",
+        f"{volume.mountpoint / BOOKS_FOLDER}  <-  sideload library (created, never wiped)",
         f"{volume.kobo_dir / 'KoboRoot.tgz'}  <-  NickelMenu plugin (applied on eject)",
         f"{volume.conf_path}  <-  ExcludeSyncFolders (idempotent)",
     ]
@@ -149,6 +171,7 @@ def install_payload(payload_dir: Path, volume: KoboVolume) -> None:
     shutil.copytree(src_koreader, dest_koreader)
     shutil.copy2(src_nm, dest_nm_dir / NICKELMENU_CONFIG_NAME)
     shutil.copy2(src_root, volume.kobo_dir / "KoboRoot.tgz")
+    ensure_books_folder(payload_dir, volume)
     ensure_exclude_sync_folders(volume.conf_path)
     shutil.copy2(payload_dir / "MANIFEST.json", volume.mountpoint / ".adds" / "kobo-sideload-manifest.json")
 
@@ -161,6 +184,7 @@ def verify_install(volume: KoboVolume) -> list[str]:
     checks = [
         volume.mountpoint / ".adds" / "koreader" / "koreader.sh",
         volume.mountpoint / ".adds" / "nm" / NICKELMENU_CONFIG_NAME,
+        volume.mountpoint / BOOKS_FOLDER,
         volume.kobo_dir / "KoboRoot.tgz",
         volume.conf_path,
     ]
